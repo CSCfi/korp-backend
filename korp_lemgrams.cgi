@@ -62,7 +62,7 @@ def get_lemgrams(wf):
                            charset = "utf8")
     cursor = conn.cursor()
     sql = ("SELECT lemgram from lemgram_index where lemgram like '" + wf
-           + "%' limit 10;")
+           + "%' order by lemgram limit 10;")
     result = []
     cursor.execute(sql)
     for row in cursor:
