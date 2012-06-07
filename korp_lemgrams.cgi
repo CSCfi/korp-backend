@@ -35,12 +35,12 @@ def main():
     form = dict((field, form_raw.getvalue(field)) for field in form_raw.keys())
     
     wf = form.get("wf")
-    if not command:
-        command = default_command(form)
+    result = {}
     try:
         result["div"] = get_lemgrams(wf)
         result["count"] = len(result["div"])
         result["time"] = time.time() - starttime
+        result["s"] = repr(result)
         print_object(result, form)
     except:
         import traceback, sys
@@ -61,15 +61,20 @@ def get_lemgrams(wf):
                            use_unicode = True,
                            charset = "utf8")
     cursor = conn.cursor()
-    sql = "SELECT lemgram from lemgram_index where lemgram like '" + wf + "' limit 10;"
-    result = {}
+    sql = ("SELECT lemgram from lemgram_index where lemgram like '" + wf
+           + "%' limit 10;")
+    result = []
     cursor.execute(sql)
     for row in cursor:
-        result
         # We need this check here, since a search for "hår" also returns "här" and "har".
-        if row[0].encode("utf-8") in lemgram and int(row[1]) > 0:
-            result[row[0]] = int(row[1])
-
+        if row[0].encode("utf-8").startswith(wf):
+            result.append({"class": ["entry"],
+                           "div": {"class": "source",
+                                   "resource": "lemgram_index"},
+                           "LexicalEntry": {"lem": row[0]}})
+    cursor.close()
+    conn.close()
+    return result
 
 
 def print_header():
