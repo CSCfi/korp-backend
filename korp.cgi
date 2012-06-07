@@ -22,10 +22,10 @@ import zlib
 # These variables could be changed depending on the corpus server
 
 # The absolute path to the CQP binary
-CQP_EXECUTABLE = "/usr/local/bin/cqp"
+CQP_EXECUTABLE = "/usr/local/cwb/bin/cqp"
 
 # The absolute path to the CWB registry files
-CWB_REGISTRY = "/usr/contrib/etc/cwb_registry"
+CWB_REGISTRY = "/corpora/registry"
 
 # The default encoding for the cqp binary
 # (this can be changed by the CGI parameter 'encoding')
@@ -41,7 +41,7 @@ PARALLEL_THREADS = 6
 DBNAME = "korp"
 DBTABLE = "relations"
 # Username and password for database access
-DBUSER = ""
+DBUSER = "korp"
 DBPASSWORD = ""
 
 ######################################################################
@@ -865,7 +865,7 @@ def relations(form):
         for corpus in corpora:
             corpus_table = DBTABLE + "_" + corpus.upper()
             
-            cursor.execute(u"SELECT * FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = 'lb_korp_sel' AND TABLE_NAME = '" + corpus_table + "' AND COLUMN_NAME = 'wf'")
+            cursor.execute(u"SELECT * FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '" + DBNAME + "' AND TABLE_NAME = '" + corpus_table + "' AND COLUMN_NAME = 'wf'")
             if len([x for x in cursor]) == 1:
                 selects.append(u"(SELECT " + columns + u", " + conn.string_literal(corpus.upper()) + u" as corpus FROM " + corpus_table + u" WHERE (head = " + lemgram_sql + u" OR dep = " + lemgram_sql + minfreqsql + u") AND wf = 0)")
             else:
@@ -968,7 +968,7 @@ def relations_sentences(form):
     conn = MySQLdb.connect(host = "localhost",
                            user = DBUSER,
                            passwd = DBPASSWORD,
-                           db = "lb_korp_sel")
+                           db = DBNAME)
     cursor = conn.cursor()
     selects = []
     
