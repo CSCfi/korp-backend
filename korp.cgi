@@ -27,7 +27,7 @@ import zlib
 CQP_EXECUTABLE = "/usr/local/cwb/bin/cqp"
 
 # The absolute path to the CWB registry files
-CWB_REGISTRY = "/corpora/registry"
+CWB_REGISTRY = "/v/corpora/registry"
 
 # The default encoding for the cqp binary
 # (this can be changed by the CGI parameter 'encoding')
