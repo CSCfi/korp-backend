@@ -57,15 +57,22 @@ AUTH_SECRET = ""
 # A text file with names of corpora needing authentication, one per line
 PROTECTED_FILE = ""
 
-# Corpora contain encoded special characters that would not otherwise
-# be handled correctly: space, slash, lesser than, greater than. These
-# characters are encoded in CQP queries and decoded in query results.
+# Whether corpora contain encoded special characters that would not
+# otherwise be handled correctly (because of limitations of CWB):
+# space, slash, lesser than, greater than. These characters are
+# encoded in CQP queries and decoded in query results.
 ENCODED_SPECIAL_CHARS = True
-SPECIAL_CHARS = " /<>"
-SPECIAL_CHAR_ENCODE_MAP = dict([(c, chr(i + 0x01))
-                                for (i, c) in enumerate(SPECIAL_CHARS)])
-SPECIAL_CHAR_DECODE_MAP = dict([(val, key) for (key, val)
-                                in SPECIAL_CHAR_ENCODE_MAP.iteritems()])
+# Special characters encoded
+SPECIAL_CHARS = u" /<>"
+# The character for encoding the first character in SPECIAL_CHARS. The
+# characters used for encoding should not appear in the corpus as
+# such, unless a multi-character encoding prefix is defined which does
+# not appear in the corpus as such.
+ENCODED_SPECIAL_CHAR_OFFSET = 0x7F
+# Prefix for the encoded form of special characters. Note that a
+# non-empty prefix means that a special character will not be matched
+# by a single-character pattern in CQP regular expressions.
+ENCODED_SPECIAL_CHAR_PREFIX = u""
 
 
 ######################################################################
@@ -91,6 +98,13 @@ IS_NUMBER = re.compile(r"^\d+$")
 IS_IDENT = re.compile(r"^[\w\-,|]+$")
 
 QUERY_DELIM = ","
+
+# Encoding and decoding mapping (list of pairs (string, replacement))
+# for special characters
+SPECIAL_CHAR_ENCODE_MAP = [
+    (c, (ENCODED_SPECIAL_CHAR_PREFIX + unichr(i + ENCODED_SPECIAL_CHAR_OFFSET)))
+     for (i, c) in enumerate(SPECIAL_CHARS)]
+SPECIAL_CHAR_DECODE_MAP = [(repl, c) for (c, repl) in SPECIAL_CHAR_ENCODE_MAP]
 
 ######################################################################
 # And now the functions corresponding to the CGI commands
@@ -597,9 +611,10 @@ def query(form):
         raise ValueError("At most %d KWIC rows can be returned per call." % MAX_KWIC_ROWS)
 
     cqp = form.get("cqp").decode("utf-8")
+    cqpextra = {}
+
     if ENCODED_SPECIAL_CHARS:
         cqp = encode_special_chars_in_query(cqp)
-    cqpextra = {}
 
     if "within" in form:
         cqpextra["within"] = form.get("within")
@@ -828,6 +843,7 @@ def count(form):
     end = int(form.get("end", -1))
     
     cqp = form.get("cqp").decode("utf-8")
+
     if ENCODED_SPECIAL_CHARS:
         cqp = encode_special_chars_in_query(cqp)
 
@@ -1600,10 +1616,11 @@ def read_attributes(lines):
 
 
 def replace_substrings(s, mapping):
-    """Replace substrings in s according to dict mapping: replace each
-    key with the corresponding value.
+    """Replace substrings in s according to mapping (a sequence of
+    pairs (string, replacement): replace each string with the
+    corresponding replacement.
     """
-    for (s1, repl) in mapping.iteritems():
+    for (s1, repl) in mapping:
         s = s.replace(s1, repl)
     return s
 
