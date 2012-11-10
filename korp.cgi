@@ -57,6 +57,17 @@ AUTH_SECRET = ""
 # A text file with names of corpora needing authentication, one per line
 PROTECTED_FILE = ""
 
+# Corpora contain encoded special characters that would not otherwise
+# be handled correctly: space, slash, lesser than, greater than. These
+# characters are encoded in CQP queries and decoded in query results.
+ENCODED_SPECIAL_CHARS = True
+SPECIAL_CHARS = " /<>"
+SPECIAL_CHAR_ENCODE_MAP = dict([(c, chr(i + 0x01))
+                                for (i, c) in enumerate(SPECIAL_CHARS)])
+SPECIAL_CHAR_DECODE_MAP = dict([(val, key) for (key, val)
+                                in SPECIAL_CHAR_ENCODE_MAP.iteritems()])
+
+
 ######################################################################
 # These variables should probably not need to be changed
 
@@ -482,6 +493,21 @@ def query_parse_lines(corpus, lines, attrs, shown, shown_structs):
             kwic_row["tokens"] = tokens
             kwic.append(kwic_row)
 
+    if ENCODED_SPECIAL_CHARS:
+        # Decode encoded special characters in p-attribute values
+        for kwic_row in kwic:
+            for token in kwic_row["tokens"]:
+                for (attr, val) in token.iteritems():
+                    if attr != "structs" and val is not None:
+                        token[attr] = decode_special_chars(val)
+            # The special characters would seem to work as such in
+            # s-attribute values, but decode them because they have
+            # been encoded in queries.
+            if "structs" in kwic_row:
+                for (struct, val) in kwic_row["structs"].iteritems():
+                    if val is not None:
+                        kwic_row["structs"][struct] = decode_special_chars(val)
+
     return kwic
 
 
@@ -571,6 +597,8 @@ def query(form):
         raise ValueError("At most %d KWIC rows can be returned per call." % MAX_KWIC_ROWS)
 
     cqp = form.get("cqp").decode("utf-8")
+    if ENCODED_SPECIAL_CHARS:
+        cqp = encode_special_chars_in_query(cqp)
     cqpextra = {}
 
     if "within" in form:
@@ -800,6 +828,8 @@ def count(form):
     end = int(form.get("end", -1))
     
     cqp = form.get("cqp").decode("utf-8")
+    if ENCODED_SPECIAL_CHARS:
+        cqp = encode_special_chars_in_query(cqp)
 
     result = {"corpora": {}}
     total_stats = {"absolute": defaultdict(int),
@@ -834,6 +864,9 @@ def count(form):
                 for i, line in enumerate(lines):
                     count, ngram = line.lstrip().split(" ", 1)
                     
+                    if ENCODED_SPECIAL_CHARS:
+                        ngram = decode_special_chars(ngram)
+
                     if len(groupby) > 1:
                         groups = ngram.split("\t")
                         ngram = "/".join(groups)
@@ -1564,6 +1597,33 @@ def read_attributes(lines):
         (typ, name, _rest) = (line + " X").split(None, 2)
         attrs[typ[0]].append(name)
     return attrs
+
+
+def replace_substrings(s, mapping):
+    """Replace substrings in s according to dict mapping: replace each
+    key with the corresponding value.
+    """
+    for (s1, repl) in mapping.iteritems():
+        s = s.replace(s1, repl)
+    return s
+
+
+def encode_special_chars(s):
+    """Encode the special characters in s."""
+    return replace_substrings(s, SPECIAL_CHAR_ENCODE_MAP)
+
+
+def decode_special_chars(s):
+    """Decode the encoded special characters in s."""
+    return replace_substrings(s, SPECIAL_CHAR_DECODE_MAP)
+
+
+def encode_special_chars_in_query(cqp):
+    """Encode the special characters in the double-quoted substrings
+    of the CQP query cqp.
+    """
+    return re.sub(r'("(?:[^\\"]|\\[\\"])+")',
+                  lambda mo: encode_special_chars(mo.group(0)), cqp)
 
 
 def assert_key(key, form, regexp, required=False):
