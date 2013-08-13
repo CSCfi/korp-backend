@@ -1639,7 +1639,7 @@ def encode_special_chars_in_query(cqp):
     """Encode the special characters in the double-quoted substrings
     of the CQP query cqp.
     """
-    return re.sub(r'("(?:[^\\"]|\\[\\"])+")',
+    return re.sub(r'("(?:[^\\"]|\\.)+")',
                   lambda mo: encode_special_chars(mo.group(0)), cqp)
 
 
