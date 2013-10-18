@@ -99,12 +99,24 @@ IS_IDENT = re.compile(r"^[\w\-,|]+$")
 
 QUERY_DELIM = ","
 
+# Special characters in CQP regular expressions that need to be
+# escaped with a backslash to match literally. If they are not
+# preceded with a backslash, they should not be replaced in queries.
+CQP_REGEX_SPECIAL_CHARS = "()|[].*+?{}^$"
 # Encoding and decoding mapping (list of pairs (string, replacement))
 # for special characters
 SPECIAL_CHAR_ENCODE_MAP = [
-    (c, (ENCODED_SPECIAL_CHAR_PREFIX + unichr(i + ENCODED_SPECIAL_CHAR_OFFSET)))
-     for (i, c) in enumerate(SPECIAL_CHARS)]
-SPECIAL_CHAR_DECODE_MAP = [(repl, c) for (c, repl) in SPECIAL_CHAR_ENCODE_MAP]
+    (escape + c, (escape + ENCODED_SPECIAL_CHAR_PREFIX
+                  + unichr(i + ENCODED_SPECIAL_CHAR_OFFSET)))
+     for (i, c) in enumerate(SPECIAL_CHARS)
+     for escape in ["\\" if c in CQP_REGEX_SPECIAL_CHARS else ""]]
+# When decoding, we need not take into account regex metacharacter
+# escaping
+SPECIAL_CHAR_DECODE_MAP = [(repl[-1], c[-1])
+                           for (c, repl) in SPECIAL_CHAR_ENCODE_MAP]
+# FIXME: Replacing escaped regex metacharacters also replaces
+# unescaped ones preceded by a literal backslash (escaped by another
+# backslash).
 
 ######################################################################
 # And now the functions corresponding to the CGI commands
