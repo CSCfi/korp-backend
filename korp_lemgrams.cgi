@@ -17,16 +17,6 @@ DBPASSWORD = ""
 
 
 def main():
-    """The main CGI handler; reads the 'command' parameter and calls
-    the same-named function with the CGI form as argument.
-
-    Global CGI parameter are
-     - command: (default: 'info' or 'query' depending on the 'cqp' parameter)
-     - callback: an identifier that the result should be wrapped in
-     - encoding: the encoding for interacting with the corpus (default: UTF-8)
-     - indent: pretty-print the result with a specific indentation (for debugging)
-     - debug: if set, return some extra information (for debugging)
-    """
     starttime = time.time()
     print_header()
     
