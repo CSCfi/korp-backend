@@ -63,7 +63,7 @@ PROTECTED_FILE = ""
 # encoded in CQP queries and decoded in query results.
 ENCODED_SPECIAL_CHARS = True
 # Special characters encoded
-SPECIAL_CHARS = u" /<>"
+SPECIAL_CHARS = u" /<>|"
 # The character for encoding the first character in SPECIAL_CHARS. The
 # characters used for encoding should not appear in the corpus as
 # such, unless a multi-character encoding prefix is defined which does
