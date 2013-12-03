@@ -1,0 +1,6 @@
+
+# Ignore Subversion directories
+.svn
+
+# Ignore Mac-specific directories
+__MACOSX
