@@ -4,3 +4,6 @@
 
 # Ignore Mac-specific directories
 __MACOSX
+
+# Ignore byte-compiled Python files
+*.pyc
