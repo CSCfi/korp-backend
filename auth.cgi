@@ -2,10 +2,9 @@
 # -*- mode: Python; -*-
 
 # jpiitula@ling.helsinki.fi for making Korp authentication work in
-# FIN-CLARIN; HTTP Basic Authentication for development version,
+# FIN-CLARIN; HTTP Basic Authentication for development version, and
 # Martin's Shibboleth session for production use (trusting
-# REMOTE_USER, which korp.cgi passes as remote_user, and returning
-# username).
+# REMOTE_USER, which korp.cgi passes as remote_user).
 
 # This server script is meant to receive HTTP Basic Authentication
 # credentials (username and password in plain) from Korp backend
@@ -25,8 +24,6 @@ import MySQLdb
 import sys
 sys.stderr = sys.stdout
 
-# Put PROTECTED_FILE contents, with PUB, ACA and RES, and
-# authorization information in the database (jpiitula Dec 2013)
 AUTH_DBNAME = "korp_auth"
 AUTH_DBUSER = "korp"
 AUTH_DBPASSWORD = ""
@@ -68,9 +65,7 @@ def main():
             authenticated = True
 
     # We can grant ACA status to people locally:
-    if academic or not authenticated:
-        pass
-    else:
+    if  authenticated and not academic:
         cursor.execute('''
         select 1 from auth_academic
         where person = %s''', [username])
@@ -87,8 +82,8 @@ def main():
         corpora = [ corpus for corpus, in cursor ]
 
         result = dict(authenticated=True,
-                      username=username, # For Shibboleth session
-                      permitted_resources=dict(corpora=corpora))
+                      permitted_resources=dict(username=username,
+                                               corpora=corpora))
     else:
         result = dict(authenticated=False)
 
