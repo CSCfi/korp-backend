@@ -5,11 +5,16 @@ in Metsätalo and Martin's work on Shibboleth Authentication on the
 production Korp (and test Korp) at CSC.
 
 (1) korp.cgi returns username as part of authentication to the
-    frontend
+    frontend: { 'username' : <string>, 'corpora' : <strings> } if
+    authenticated, { 'username' : None } otherwise.
 
 (2) korp.cgi passes to AUTH_SERVER
-    - cgi.os.environ['REMOTE_USER'] if available (Shibboleth, trusted)
-    - form['username'] and form['password'] as now, otherwise
+
+    - cgi.os.environ['REMOTE_USER'] as remote_user if available
+      (Shibboleth, trusted)
+
+    - form['username'] and form['password'] as username and password
+      as now, otherwise (HTTP Basic Authentication)
 
 (3) korp.cgi uses a database in place of PROTECTED_FILE to get the
     list of corpora that require authentication (ACA and RES); our
