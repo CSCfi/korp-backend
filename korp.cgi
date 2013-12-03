@@ -1735,7 +1735,8 @@ def authenticate(_=None):
     except:
         raise KorpAuthenticationError("Unexpected error during authentication.")
 
-    return auth_response
+    # Response contains username and corpora, or username=None
+    return auth_response.get('permitted_resources', {})
 
 def check_authentication(corpora):
     """Raises an exception if any of the corpora are protected and the
