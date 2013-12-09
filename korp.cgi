@@ -58,7 +58,7 @@ AUTH_SERVER = ""
 AUTH_SECRET = ""
 
 # A text file with names of corpora needing authentication, one per line
-PROTECTED_FILE = ""
+PROTECTED_FILE = "/v/corpora/protected.txt"
 
 # Cache path (optional). Script must have read and write access
 CACHE_DIR = ""
