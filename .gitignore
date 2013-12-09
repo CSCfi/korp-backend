@@ -3,3 +3,9 @@
 
 # Python byte-compiled files
 *.pyc
+
+# Ignore Subversion directories
+.svn
+
+# Ignore Mac-specific directories
+__MACOSX
