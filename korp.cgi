@@ -80,6 +80,13 @@ ENCODED_SPECIAL_CHAR_OFFSET = 0x7F
 # by a single-character pattern in CQP regular expressions.
 ENCODED_SPECIAL_CHAR_PREFIX = u""
 
+# A text file with (regexps of) names of corpora whose sentences
+# should never be displayed in corpus order, one per line
+RESTRICTED_SENTENCES_CORPORA_FILE = "/v/corpora/restricted_sentences.txt"
+# The default sorting order of the results for the above corpora (if
+# no other order is specified)
+RESTRICTED_SENTENCES_DEFAULT_SORT = "keyword"
+
 ######################################################################
 # These variables should probably not need to be changed
 
@@ -123,6 +130,10 @@ SPECIAL_CHAR_DECODE_MAP = [(repl[-1], c[-1])
 # unescaped ones preceded by a literal backslash (escaped by another
 # backslash).
 
+# The regexp for the names of the corpora whose sentences should never
+# be shown in corpus order; initialized in main()
+RESTRICTED_SENTENCES_CORPORA_REGEXP = None
+
 ################################################################################
 # And now the functions corresponding to the CGI commands
 
@@ -145,6 +156,10 @@ def main():
     form_raw = cgi.FieldStorage()
     form = dict((field, form_raw.getvalue(field)) for field in form_raw.keys())
     
+    global RESTRICTED_SENTENCES_CORPORA_REGEXP
+    RESTRICTED_SENTENCES_CORPORA_REGEXP = read_corpora_regexp_file(
+        RESTRICTED_SENTENCES_CORPORA_FILE)
+
     incremental = form.get("incremental", "").lower() == "true"
     
     if incremental:
@@ -624,6 +639,16 @@ def query_corpus(form, corpus, cqp, cqpextra, shown, shown_structs, start, end, 
 
     # Sorting
     sort = form.get("sort")
+    random_seed = ""
+    # If the sentences of the corpus should never be displayed in
+    # corpus order and "sort" has not been specified, use
+    # RESTRICTED_SENTENCES_DEFAULT_SORT
+    if (RESTRICTED_SENTENCES_CORPORA_REGEXP
+        and sort not in ["left", "keyword", "right", "random"]
+        and RESTRICTED_SENTENCES_CORPORA_REGEXP.match(corpus)):
+        sort = RESTRICTED_SENTENCES_DEFAULT_SORT
+        # Use a random but fixed order if "random" is used
+        random_seed = "1"
     if sort == "left":
         sortcmd = ["sort by word on match[-1] .. match[-3];"]
     elif sort == "keyword":
@@ -631,7 +656,7 @@ def query_corpus(form, corpus, cqp, cqpextra, shown, shown_structs, start, end, 
     elif sort == "right":
         sortcmd = ["sort by word on matchend[1] .. matchend[3];"]
     elif sort == "random":
-        random_seed = form.get("random_seed", "")
+        random_seed = random_seed or form.get("random_seed", "")
         sortcmd = ["sort randomize %s;" % random_seed]
     else:
         sortcmd = []
@@ -2128,6 +2153,33 @@ def encode_special_chars_in_queries(cqp_list):
     of the list of CQP queryies cqp_list.
     """
     return [encode_special_chars_in_query(cqp) for cqp in cqp_list]
+
+
+def read_corpora_regexp_file(fname):
+    """Return a compiled regular expression of the disjunction of the
+    (corpus name) regexps listed in the file 'fname', with each
+    non-empty, non-comment line as one disjunct. The regexps are
+    uppercased. If the argument 'fname' or the file itself is empty or
+    if an IOError occurs, return None.
+    """
+    corpus_name_regexps = []
+    if fname:
+        try:
+            with open(fname, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#'):
+                        corpus_name_regexps.append(line.upper())
+        except IOError:
+            pass
+    if corpus_name_regexps:
+        re_str = ('^(?:'
+                  + '|'.join('(?:' + regexp + ')'
+                             for regexp in corpus_name_regexps)
+                  + ')$')
+        return re.compile(re_str)
+    else:
+        return None
 
 
 def assert_key(key, form, regexp, required=False):
