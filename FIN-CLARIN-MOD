@@ -1,3 +1,9 @@
+2013-12-13 jpiitula
+
+New backend merge with my authentication code appears to just work,
+both with old frontend and with new frontend. Backend needs the auth
+database, of course, which we have on the test server.
+
 2013-12-02 jpiitula
 
 The goal is to enable HTTP Basic Authentication on a development Korp
