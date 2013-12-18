@@ -52,13 +52,19 @@ DBTABLE = "relations"
 DBUSER = "korp"
 DBPASSWORD = ""
 
+# Put PROTECTED_FILE contents, with PUB, ACA and RES, and other
+# authorization information in the database (jpiitula Dec 2013)
+AUTH_DBNAME = "korp_auth"
+AUTH_DBUSER = "korp"
+AUTH_DBPASSWORD = ""
+
 # URL to authentication server
-AUTH_SERVER = ""
+AUTH_SERVER = "http://localhost/cgi-bin/korp-auth/auth.cgi"
 # Secret string used when communicating with authentication server
 AUTH_SECRET = ""
 
 # A text file with names of corpora needing authentication, one per line
-PROTECTED_FILE = "/v/corpora/protected.txt"
+# PROTECTED_FILE = "/v/corpora/protected.txt"
 
 # Cache path (optional). Script must have read and write access
 CACHE_DIR = ""
@@ -2226,12 +2232,24 @@ def print_object(obj, form):
 
 
 def authenticate(_=None):
-    """Authenticates a user against an authentication server.
+    """Authenticates a user against AUTH_SERVER.
     """
-    
+    remote_user = cgi.os.environ.get('REMOTE_USER')
     auth_header = cgi.os.environ.get('HTTP_AUTH_HEADER')
 
-    if auth_header and auth_header.startswith("Basic "):
+    if remote_user:
+        ## DEBUGGING
+        # with open('/v/korp/cgi-bin/log/ru_env.log', 'w+') as f:
+        #     f.write(repr(cgi.os.environ))
+
+        # In which order should we check the affiliation variables?
+        affiliation = (cgi.os.environ.get('HTTP_UNSCOPED_AFFILIATION') or
+                       cgi.os.environ.get('HTTP_AFFILIATION') or '')
+        postdata = {
+            "remote_user": remote_user,
+            "affiliation": affiliation.lower()
+        }
+    elif auth_header and auth_header.startswith("Basic "):
         user, pw = base64.b64decode(auth_header[6:]).split(":")
 
         postdata = {
@@ -2239,36 +2257,56 @@ def authenticate(_=None):
             "password": pw,
             "checksum": md5.new(user + pw + AUTH_SECRET).hexdigest()
         }
+    else:
+        return dict(username=None)
 
-        try:
-            contents = urllib2.urlopen(AUTH_SERVER, urllib.urlencode(postdata)).read()
-            auth_response = json.loads(contents)
-        except urllib2.HTTPError:
-            raise KorpAuthenticationError("Could not contact authentication server.")
-        except ValueError:
-            raise KorpAuthenticationError("Invalid response from authentication server.")
-        except:
-            raise KorpAuthenticationError("Unexpected error during authentication.")
-        
-        if auth_response["authenticated"]:
-            return auth_response["permitted_resources"] if isinstance(auth_response["permitted_resources"], dict) else {"corpora" : []}
+    try:
+        contents = urllib2.urlopen(AUTH_SERVER, urllib.urlencode(postdata)).read()
+        auth_response = json.loads(contents)
+    except urllib2.HTTPError:
+        raise KorpAuthenticationError("Could not contact authentication server.")
+    except ValueError:
+        raise KorpAuthenticationError("Invalid response from authentication server.")
+    except:
+        raise KorpAuthenticationError("Unexpected error during authentication.")
 
-    return {}
-
+    # Response contains username and corpora, or username=None
+    return auth_response.get('permitted_resources', {})
 
 def check_authentication(corpora):
-    """Takes a list of corpora, and if any of them are protected, runs authentication.
-    Raises an error if authentication fails."""
+    """Raises an exception if any of the corpora are protected and the
+    user is not authorized to access them (by AUTH_SERVER)."""
     
-    if PROTECTED_FILE:
-        with open(PROTECTED_FILE) as infile:
-            protected = [x.strip() for x in infile.readlines()]
-        c = filter(lambda x: x.upper() in protected, corpora)
-        if c:
-            auth = authenticate()
-            unauthorized = filter(lambda x: x.upper() not in auth.get("corpora", []), c)
-            if not auth or unauthorized:
-                raise KorpAuthenticationError("You do not have access to the following corpora: %s" % ", ".join(unauthorized))
+    conn = MySQLdb.connect(host = "localhost",
+                           user = AUTH_DBUSER,
+                           passwd = AUTH_DBPASSWORD,
+                           db = AUTH_DBNAME,
+                           use_unicode = True,
+                           charset = "utf8")
+    cursor = conn.cursor()
+    cursor.execute('''
+    select corpus from auth_license
+    where license = 'ACA' or license = 'RES'
+    ''')
+    protected = [ corpus for corpus, in cursor ]
+    cursor.close()
+    conn.close()
+
+    #print 'corpora:', corpora ## DEBUGGING
+    #print 'protected:', protected ## DEBUGGING
+
+    if protected:
+        auth = authenticate()
+        #print 'auth:', auth ## DEBUGGING
+        authorized = auth.get('corpora', [])
+        #print 'authorized:', authorized ## DEBUGGING
+        unauthorized = [ corpus for corpus in corpora
+                         if corpus in protected
+                         and corpus not in authorized ]
+        #print 'unauthorized:', unauthorized ## DEBUGGING
+
+        if unauthorized:
+            raise KorpAuthenticationError("You do not have access to the following corpora: %s" % ", ".join(unauthorized))
 
 
 def anti_timeout_loop(f, args=None, timeout=90):
