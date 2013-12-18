@@ -48,8 +48,7 @@ def main():
     if 'remote_user' in form:
         username = form['remote_user']
         authenticated = True
-        # Open: How does one get the ACA bit (researcher status in
-        # home organization) in Shibboleth?
+        academic = 'faculty' in form.get('affiliation', '').lower()
     else:
         username = form.get('username', None)
         password = form.get('password', '')
@@ -90,6 +89,7 @@ def main():
     result = json.dumps(result)
     logging.info('result: %s', result)
     print(result)
+    conn.close()
 
 def print_header():
     '''Copied from korp.cgi - may not be quite right here'''

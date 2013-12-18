@@ -2186,8 +2186,16 @@ def authenticate(_=None):
     auth_header = cgi.os.environ.get('HTTP_AUTH_HEADER')
 
     if remote_user:
+        ## DEBUGGING
+        # with open('/v/korp/cgi-bin/log/ru_env.log', 'w+') as f:
+        #     f.write(repr(cgi.os.environ))
+
+        # In which order should we check the affiliation variables?
+        affiliation = (cgi.os.environ.get('HTTP_UNSCOPED_AFFILIATION') or
+                       cgi.os.environ.get('HTTP_AFFILIATION') or '')
         postdata = {
-            "remote_user": remote_user
+            "remote_user": remote_user,
+            "affiliation": affiliation.lower()
         }
     elif auth_header and auth_header.startswith("Basic "):
         user, pw = base64.b64decode(auth_header[6:]).split(":")
