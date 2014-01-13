@@ -50,7 +50,7 @@ def main():
         authenticated = True
         academic = 'faculty' in form.get('affiliation', '').lower()
     else:
-        username = form.get('username', None)
+        username = form.get('username', '')
         password = form.get('password', '')
         # Faking the ACA bit - not for production use:
         if username.endswith('+ACA'):
