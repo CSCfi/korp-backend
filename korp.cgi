@@ -25,6 +25,7 @@ import urllib, urllib2, base64, md5
 from Queue import Queue, Empty
 import threading
 import ast
+import logging
 
 ################################################################################
 # These variables could be changed depending on the corpus server
@@ -93,6 +94,13 @@ RESTRICTED_SENTENCES_CORPORA_FILE = "/v/corpora/restricted_sentences.txt"
 # no other order is specified)
 RESTRICTED_SENTENCES_DEFAULT_SORT = "keyword"
 
+# Path to log file; use /dev/null to disable logging
+LOG_FILE = "/v/korp/log/korp-cgi.log"
+# Log level: set to logging.DEBUG for also logging actual CQP
+# commands, logging.WARNING for only warnings and errors,
+# logging.CRITICAL to disable logging
+LOG_LEVEL = logging.INFO
+
 ######################################################################
 # These variables should probably not need to be changed
 
@@ -155,12 +163,23 @@ def main():
      - debug: if set, return some extra information (for debugging)
     """
     starttime = time.time()
+    # Configure logging
+    logging.basicConfig(filename=LOG_FILE,
+                        format=('[%(filename)s %(process)d' +
+                                ' %(levelname)s @ %(asctime)s]' +
+                                ' %(message)s'),
+                        level=LOG_LEVEL)
+
     sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 0) # Open unbuffered stdout
     print_header()
     
     # Convert form fields to regular dictionary
     form_raw = cgi.FieldStorage()
     form = dict((field, form_raw.getvalue(field)) for field in form_raw.keys())
+
+    # Log remote IP address and CGI parameters
+    logging.info('IP: %s', cgi.os.environ.get('REMOTE_ADDR'))
+    logging.info('Params: %s', form)
     
     global RESTRICTED_SENTENCES_CORPORA_REGEXP
     RESTRICTED_SENTENCES_CORPORA_REGEXP = read_corpora_regexp_file(
@@ -185,6 +204,8 @@ def main():
         result = globals()[command](form)
         result["time"] = time.time() - starttime
         print_object(result, form)
+        # Log elapsed time
+        logging.info("Elapsed: %s", str(result["time"]))
     except:
         import traceback
         exc = sys.exc_info()
@@ -192,9 +213,15 @@ def main():
                            "value": str(exc[1])
                            },
                  "time": time.time() - starttime}
+        trace = traceback.format_exc().splitlines()
         if "debug" in form:
-            error["ERROR"]["traceback"] = traceback.format_exc().splitlines()
+            error["ERROR"]["traceback"] = trace
         print_object(error, form)
+        # Traceback for logging
+        error["ERROR"]["traceback"] = trace
+        # Log error message with traceback and elapsed time
+        logging.error("%s", error["ERROR"])
+        logging.info("Elapsed: %s", str(error["time"]))
     
     if incremental:
         print "}"
@@ -516,6 +543,8 @@ def query(form):
         with open(os.path.join(CACHE_DIR, checksum), "w") as cachefile:
             cachefile.write(result["querydata"])
 
+    # Log the number of hits by corpus
+    logging.info("Hits: %s", statistics)
     return result
 
 
@@ -2091,6 +2120,8 @@ def runCQP(command, form, executable=CQP_EXECUTABLE, registry=CWB_REGISTRY, attr
     if not isinstance(command, basestring):
         command = "\n".join(command)
     command = "set PrettyPrint off;\n" + command
+    # Log the CQP query if the log level is DEBUG
+    logging.debug("CQP: %s", repr(command))
     command = command.encode(encoding)
     process = Popen([executable, "-c", "-r", registry],
                     stdin=PIPE, stdout=PIPE, stderr=PIPE)
