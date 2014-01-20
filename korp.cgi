@@ -68,7 +68,7 @@ AUTH_SECRET = ""
 # PROTECTED_FILE = "/v/corpora/protected.txt"
 
 # Cache path (optional). Script must have read and write access
-CACHE_DIR = ""
+CACHE_DIR = "/v/korp/cache"
 
 # Whether corpora contain encoded special characters that would not
 # otherwise be handled correctly (because of limitations of CWB):
