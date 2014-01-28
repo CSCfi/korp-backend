@@ -60,7 +60,7 @@ AUTH_DBUSER = "korp"
 AUTH_DBPASSWORD = ""
 
 # URL to authentication server
-AUTH_SERVER = "http://localhost/cgi-bin/korp-auth/auth.cgi"
+AUTH_SERVER = "http://localhost/cgi-bin/korp/auth.cgi"
 # Secret string used when communicating with authentication server
 AUTH_SECRET = ""
 
