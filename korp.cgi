@@ -163,12 +163,6 @@ def main():
      - debug: if set, return some extra information (for debugging)
     """
     starttime = time.time()
-    # Configure logging
-    logging.basicConfig(filename=LOG_FILE,
-                        format=('[%(filename)s %(process)d' +
-                                ' %(levelname)s @ %(asctime)s]' +
-                                ' %(message)s'),
-                        level=LOG_LEVEL)
 
     sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 0) # Open unbuffered stdout
     print_header()
@@ -177,6 +171,13 @@ def main():
     form_raw = cgi.FieldStorage()
     form = dict((field, form_raw.getvalue(field)) for field in form_raw.keys())
 
+    # Configure logging
+    loglevel = logging.DEBUG if "debug" in form else LOG_LEVEL
+    logging.basicConfig(filename=LOG_FILE,
+                        format=('[%(filename)s %(process)d' +
+                                ' %(levelname)s @ %(asctime)s]' +
+                                ' %(message)s'),
+                        level=loglevel)
     # Log remote IP address and CGI parameters
     logging.info('IP: %s', cgi.os.environ.get('REMOTE_ADDR'))
     logging.info('Params: %s', form)
