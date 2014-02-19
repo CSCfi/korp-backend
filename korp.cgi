@@ -101,6 +101,8 @@ LOG_FILE = "/v/korp/log/korp-cgi.log"
 # logging.CRITICAL to disable logging
 LOG_LEVEL = logging.INFO
 
+FILE_CONTENT_DIR = "/v/corpora/pages"
+
 ######################################################################
 # These variables should probably not need to be changed
 
@@ -109,7 +111,7 @@ KORP_VERSION = "2.3"
 
 # The available CGI commands; for each command there must be a function
 # with the same name, taking one argument (the CGI form)
-COMMANDS = "info query count relations relations_sentences lemgram_count timespan authenticate count_time optimize loglike".split()
+COMMANDS = "info query count relations relations_sentences lemgram_count timespan authenticate count_time optimize loglike file_content".split()
 
 def default_command(form):
     return "query" if "cqp" in form else "info"
@@ -2018,6 +2020,31 @@ def relations_sentences(form):
 
 
 ################################################################################
+# FILE_CONTENT
+################################################################################
+
+def file_content(form):
+    """ """
+
+    assert_key("corpora", form, IS_IDENT, True)
+    corpus = form.get("corpora")
+    check_authentication([corpus.upper()])
+    
+    assert_key("file", form, r"^\S+$", True)
+    filename = form.get("file")
+
+    content = []
+    try:
+        with open(os.path.join(FILE_CONTENT_DIR, corpus, filename), "r") as f:
+            content = "".join([line for line in f])
+            return {"content": content}
+    except IOError, e:
+        raise KorpFileAccessError(
+            "Cannot access file '" + page + "' for corpus " + corpus
+            + " (error code " + str(e.errno) + ")")
+
+
+################################################################################
 # Helper functions
 
 def parse_cqp(cqp):
@@ -2105,6 +2132,10 @@ class CQPError(Exception):
 
 
 class KorpAuthenticationError(Exception):
+    pass
+
+
+class KorpFileAccessError(Exception):
     pass
 
 
