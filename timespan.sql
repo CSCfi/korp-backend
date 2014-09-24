@@ -8,4 +8,4 @@ CREATE TABLE IF NOT EXISTS `timespans` (
 DELETE FROM `timespans` WHERE `corpus` = 'TESTCORPUS';
 SET NAMES utf8;
 INSERT INTO `timespans` (corpus, datefrom, dateto, tokens) VALUES
-('TESTCORPUS', '20130130', '20130130', 136);
+('TESTCORPUS', '20130130000000', '20130130235959', 136);
