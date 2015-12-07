@@ -35,10 +35,10 @@ import cPickle
 import korp_config as config
 
 ################################################################################
-# Nothing needs to be changed in this file. Use korpconfig.py for configuration.
+# Nothing needs to be changed in this file. Use korp_config.py for configuration.
 
 # The version of this script
-KORP_VERSION = "2.66"
+KORP_VERSION = "2.8"
 
 # The available CGI commands; for each command there must be a function
 # with the same name, taking one argument (the CGI form)
@@ -163,14 +163,13 @@ def corpus_info(form):
     
     corpora = form.get("corpus")
     if isinstance(corpora, basestring):
-        corpora = corpora.split(QUERY_DELIM)
+        corpora = corpora.upper().split(QUERY_DELIM)
     corpora = sorted(set(corpora))
     
     use_cache = bool(not form.get("cache", "").lower() == "false" and config.CACHE_DIR)
     
     # Caching
-    checksum_data = ("".join(sorted(corpora)),)
-    checksum = get_hash(checksum_data)
+    checksum = get_hash((sorted(corpora),))
     
     if use_cache:
         cachefilename = os.path.join(config.CACHE_DIR, "info_" + checksum)
@@ -254,7 +253,7 @@ def query_sample(form):
     
     corpora = form.get("corpus")
     if isinstance(corpora, basestring):
-        corpora = corpora.split(QUERY_DELIM)
+        corpora = corpora.upper().split(QUERY_DELIM)
     corpora = list(set(corpora))
     # Randomize corpus order
     random.shuffle(corpora)
@@ -306,7 +305,7 @@ def query(form):
     assert_key("show_struct", form, IS_IDENT)
     #assert_key("within", form, IS_IDENT)
     assert_key("cut", form, IS_NUMBER)
-    assert_key("sort", form, r"(left|keyword|right|random)")
+    assert_key("sort", form, r"")
     assert_key("incremental", form, r"(true|false)")
 
     ############################################################################
@@ -317,7 +316,7 @@ def query(form):
     
     corpora = form.get("corpus")
     if isinstance(corpora, basestring):
-        corpora = corpora.split(QUERY_DELIM)
+        corpora = corpora.upper().split(QUERY_DELIM)
     corpora = sorted(set(corpora))
     
     check_authentication(corpora)
@@ -353,13 +352,13 @@ def query(form):
 
     result = {}
 
-    checksum_data = ":".join(
-                             (";".join(cqp),
-                             ";".join((":".join(e) for e in cqpextra.items())),
-                             form.get("defaultwithin", ""),
-                             ",".join(sorted(corpora)),
-                             str(expand_prequeries))
-                     )
+    checksum_data = (
+                     sorted(corpora),
+                     cqp,
+                     sorted(cqpextra.items()),
+                     form.get("defaultwithin", ""),
+                     expand_prequeries
+                    )
 
     # Calculate querydata checksum
     checksum = get_hash(checksum_data)
@@ -558,7 +557,7 @@ def optimize(form):
     if "cut" in form:
         cqpextra["cut"] = form["cut"]
     
-    cqp = form["cqp"]  # [form.get(key).decode("utf-8") for key in sorted(form.keys()) if key.startswith("cqp")]
+    cqp = form["cqp"]  # cqp = [form.get(key).decode("utf-8") for key in sorted([k for k in form.keys() if k.startswith("cqp")], key=lambda x: int(x[3:]) if len(x) > 3 else 0)]
     result = {"cqp": query_optimize(cqp, cqpextra)}
     return result
 
@@ -654,13 +653,21 @@ def query_corpus(form, corpus, cqp, cqpextra, shown, shown_structs, start, end, 
     shown = shown.copy()  # To not edit the original
     
     # Context
+    contexts = {"leftcontext": form.get("leftcontext", {}),
+                "rightcontext": form.get("rightcontext", {}),
+                "context": form.get("context", {})}
     defaultcontext = form.get("defaultcontext", "10 words")
-    context = form.get("context", {})
-    if context:
-        if not ":" in context:
-            raise ValueError("Malformed value for key 'context'.")
-        context = dict(x.split(":") for x in context.split(","))
-    context = context.get(corpus, defaultcontext)
+    
+    for c in contexts: 
+        if contexts[c]:
+            if not ":" in contexts[c]:
+                raise ValueError("Malformed value for key '%s'." % c)
+            contexts[c] = dict(x.split(":") for x in contexts[c].split(","))
+    
+    if corpus in contexts["leftcontext"] or corpus in contexts["rightcontext"]:
+        context = (contexts["leftcontext"].get(corpus, defaultcontext), contexts["rightcontext"].get(corpus, defaultcontext))
+    else:
+        context = (contexts["context"].get(corpus, defaultcontext),)
     
     # Within
     defaultwithin = form.get("defaultwithin", "")
@@ -710,6 +717,9 @@ def query_corpus(form, corpus, cqp, cqpextra, shown, shown_structs, start, end, 
     elif sort == "random":
         random_seed = form.get("random_seed", "")
         sortcmd = ["sort randomize %s;" % random_seed]
+    elif sort:
+        # Sort by positional attribute
+        sortcmd = ["sort by %s;" % sort]
     else:
         sortcmd = []
 
@@ -724,7 +734,8 @@ def query_corpus(form, corpus, cqp, cqpextra, shown, shown_structs, start, end, 
         if pre_query and expand_prequeries:
             cqpextra_temp["expand"] = "to " + cqpextra["within"]
         
-        if optimize:
+        # If expand_prequeries is False, we can't use optimization
+        if optimize and expand_prequeries:
             cmd += query_optimize(c, cqpextra_temp, find_match=(not pre_query), expand=not (pre_query and not expand_prequeries))
         else:
             cmd += make_query(make_cqp(c, cqpextra_temp))
@@ -736,15 +747,20 @@ def query_corpus(form, corpus, cqp, cqpextra, shown, shown_structs, start, end, 
     cmd += ["size Last;"]
     if not no_results:
         cmd += ["show +%s;" % " +".join(shown)]
-        cmd += ["set Context %s;" % context]
+        if len(context) == 1:
+            cmd += ["set Context %s;" % context[0]]
+        else:
+            cmd += ["set LeftContext %s;" % context[0]]
+            cmd += ["set RightContext %s;" % context[1]]
         cmd += ["set LeftKWICDelim '%s '; set RightKWICDelim ' %s';" % (LEFT_DELIM, RIGHT_DELIM)]
         if shown_structs:
             cmd += ["set PrintStructures '%s';" % ", ".join(shown_structs)]
+        cmd += ["set ExternalSort yes;"]
         cmd += sortcmd
         # This prints the result rows:
         cmd += ["cat Last %s %s;" % (start, end)]
     cmd += ["exit;"]
-
+    
     ######################################################################
     # Then we call the CQP binary, and read the results
 
@@ -790,7 +806,13 @@ def query_parse_lines(corpus, lines, attrs, shown, shown_structs):
 
         # Handle PrintStructures
         if ls_attrs and not aligned:
-            lineattr, line = line.rsplit(":  ", 1)
+            if ":  " in line:
+                lineattr, line = line.rsplit(":  ", 1)
+            else:
+                # Sometimes, depending on context, CWB uses only one space instead of two as a separator
+                lineattr, line = line.split(">: ", 1)
+                lineattr += ">"
+            
             lineattrs = lineattr[2:-1].split("><")
             
             # Handle "><" in attribute values
@@ -938,6 +960,10 @@ def count(form):
      - ignore_case: changes all values of the selected attribute to lower case
      - incremental: incrementally report the progress while executing
        (default: false)
+     - expand_prequeries: when using multiple queries, this determines whether
+       subsequent queries should be run on the containing sentences (or any other structural attribute
+       defined by 'within') from the previous query, or just the matches.
+       (default: true)
     """
     assert_key("cqp", form, r"", True)
     assert_key("corpus", form, IS_IDENT, True)
@@ -951,7 +977,7 @@ def count(form):
     
     corpora = form.get("corpus")
     if isinstance(corpora, basestring):
-        corpora = corpora.split(QUERY_DELIM)
+        corpora = corpora.upper().split(QUERY_DELIM)
     corpora = set(corpora)
     
     check_authentication(corpora)
@@ -965,6 +991,13 @@ def count(form):
         ignore_case = ignore_case.split(QUERY_DELIM)
     ignore_case = set(ignore_case)
     
+    defaultwithin = form.get("defaultwithin", "")
+    within = form.get("within", defaultwithin)
+    if ":" in within:
+        within = dict(x.split(":") for x in within.split(","))
+    else:
+        within = {"": defaultwithin}
+    
     start = int(form.get("start", 0))
     end = int(form.get("end", -1))
     
@@ -976,7 +1009,8 @@ def count(form):
     if isinstance(strippointer, basestring):
         strippointer = strippointer.split(QUERY_DELIM)
     
-    cqp = [form.get(key).decode("utf-8") for key in sorted(form.keys()) if key.startswith("cqp")]
+    # Sort numbered CQP-queries numerically
+    cqp = [form.get(key).decode("utf-8") for key in sorted([k for k in form.keys() if k.startswith("cqp")], key=lambda x: int(x[3:]) if len(x) > 3 else 0)]
     simple = form.get("simple", "").lower() == "true"
 
     if cqp == ["[]"]:
@@ -984,12 +1018,14 @@ def count(form):
     
     expand_prequeries = not form.get("expand_prequeries", "").lower() == "false"
 
-    checksum_data = ("".join(sorted(corpora)),
+    checksum_data = (sorted(corpora),
                      cqp,
                      groupby,
-                     "".join(list(ignore_case)),
-                     split,
-                     strippointer,
+                     sorted(within.iteritems()),
+                     defaultwithin,
+                     sorted(ignore_case),
+                     sorted(split),
+                     sorted(strippointer),
                      start,
                      end)
     checksum = get_hash(checksum_data)
@@ -1161,29 +1197,99 @@ def count_all(form):
 def count_time(form):
     """
     """
+    import datetime
+    from dateutil.relativedelta import relativedelta
+    
     assert_key("cqp", form, r"", True)
     assert_key("corpus", form, IS_IDENT, True)
     assert_key("cut", form, IS_NUMBER)
     assert_key("incremental", form, r"(true|false)")
+    assert_key("granularity", form, r"[ymdhnsYMDHNS]")
     assert_key("from", form, r"^\d{14}$")
     assert_key("to", form, r"^\d{14}$")
+    assert_key("strategy", form, r"^[123]$")
     
     incremental = form.get("incremental", "").lower() == "true"
 
     corpora = form.get("corpus")
     if isinstance(corpora, basestring):
-        corpora = corpora.split(QUERY_DELIM)
+        corpora = corpora.upper().split(QUERY_DELIM)
     corpora = set(corpora)
     
     check_authentication(corpora)
     
-    cqp = [form.get(key).decode("utf-8") for key in sorted(form.keys()) if key.startswith("cqp")]
-    subcqp = [form.get(key).decode("utf-8") for key in sorted(form.keys()) if key.startswith("subcqp")]
+    # Sort numbered CQP-queries numerically
+    cqp = [form.get(key).decode("utf-8") for key in sorted([k for k in form.keys() if k.startswith("cqp")], key=lambda x: int(x[3:]) if len(x) > 3 else 0)]
+    subcqp = [form.get(key).decode("utf-8") for key in sorted([k for k in form.keys() if k.startswith("subcqp")], key=lambda x: int(x[6:]) if len(x) > 6 else 0)]
+
     if subcqp:
         cqp.append(subcqp)
     granularity = form.get("granularity", "y").lower()
     fromdate = form.get("from", "")
     todate = form.get("to", "")
+    
+    # Check that we have a suitable date range for the selected granularity
+    df = None
+    dt = None
+    
+    if fromdate or todate:
+        if not fromdate or not todate:
+            raise ValueError("When using 'from' or 'to', both need to be specified.")
+
+    # Get date range of selected corpora
+    corpus_info = info({"corpus": ",".join(corpora)})
+    corpora_copy = corpora.copy()
+
+    if fromdate and todate:
+        df = datetime.datetime.strptime(fromdate, "%Y%m%d%H%M%S")
+        dt = datetime.datetime.strptime(todate, "%Y%m%d%H%M%S")
+        
+        # Remove corpora not within selected date span
+        for c in corpus_info["corpora"]:
+            firstdate = corpus_info["corpora"][c]["info"].get("FirstDate")
+            lastdate = corpus_info["corpora"][c]["info"].get("LastDate")
+            if firstdate and lastdate:
+                firstdate = datetime.datetime.strptime(firstdate, "%Y-%m-%d %H:%M:%S")
+                lastdate = datetime.datetime.strptime(lastdate, "%Y-%m-%d %H:%M:%S")
+                
+                if not (firstdate <= dt and lastdate >= df):
+                    corpora.remove(c)
+                
+    else:
+        # If no date range was provided, use whole date range of the selected corpora
+        for c in corpus_info["corpora"]:
+            firstdate = corpus_info["corpora"][c]["info"].get("FirstDate")
+            lastdate = corpus_info["corpora"][c]["info"].get("LastDate")
+            if firstdate and lastdate:
+                firstdate = datetime.datetime.strptime(firstdate, "%Y-%m-%d %H:%M:%S")
+                lastdate = datetime.datetime.strptime(lastdate, "%Y-%m-%d %H:%M:%S")
+                
+                if not df or firstdate < df:
+                    df = firstdate
+                if not dt or lastdate > dt:
+                    dt = lastdate
+    
+    if df and dt:
+        maxpoints = 3600
+        
+        if granularity == "y":
+            add = relativedelta(years=maxpoints)
+        elif granularity == "m":
+            add = relativedelta(months=maxpoints)
+        elif granularity == "d":
+            add = relativedelta(days=maxpoints)
+        elif granularity == "h":
+            add = relativedelta(hours=maxpoints)
+        elif granularity == "n":
+            add = relativedelta(minutes=maxpoints)
+        elif granularity == "s":
+            add = relativedelta(seconds=maxpoints)
+        
+        if dt > (df + add):
+            raise ValueError("The date range is too large for the selected granularity. Use 'to' and 'from' to limit the range.")
+    
+    
+    strategy = int(form.get("strategy", "1"))
     
     use_cache = bool(not form.get("cache", "").lower() == "false" and config.CACHE_DIR)
     
@@ -1248,11 +1354,11 @@ def count_time(form):
         
         anti_timeout_loop(anti_timeout)
 
-    corpus_timedata = timespan({"corpus": list(corpora), "granularity": granularity, "from": fromdate, "to": todate, "cache": str(use_cache)})
+    corpus_timedata = timespan({"corpus": list(corpora), "granularity": granularity, "from": fromdate, "to": todate, "cache": str(use_cache), "strategy": str(strategy)})
     search_timedata = []
     search_timedata_combined = []
     for total_row in total_rows:
-        temp = timespan_calculator(total_row, granularity=granularity)
+        temp = timespan_calculator(total_row, granularity=granularity, strategy=strategy)
         search_timedata.append(temp["corpora"])
         search_timedata_combined.append(temp["combined"])
        
@@ -1275,7 +1381,7 @@ def count_time(form):
 
             for row in s.get(corpus, {}).iteritems():
                 date, count = row
-                corpus_date_size = float(corpus_timedata["corpora"][corpus][date])
+                corpus_date_size = float(corpus_timedata["corpora"].get(corpus, {}).get(date, 0))
                 if corpus_date_size > 0.0:
                     corpus_stats[i]["absolute"][date] += count
                     corpus_stats[i]["relative"][date] += (count / corpus_date_size * 1000000)
@@ -1305,7 +1411,7 @@ def count_time(form):
         if s:
             for row in s.iteritems():
                 date, count = row
-                combined_date_size = float(corpus_timedata["combined"][date])
+                combined_date_size = float(corpus_timedata["combined"].get(date, 0))
                 if combined_date_size > 0.0:
                     total_stats[i]["absolute"][date] += count
                     total_stats[i]["relative"][date] += (count / combined_date_size * 1000000) if combined_date_size else 0
@@ -1316,6 +1422,10 @@ def count_time(form):
             total_stats[i]["cqp"] = subcqp[i - 1]
 
     result["combined"] = total_stats if len(total_stats) > 1 else total_stats[0]
+    
+    # Add zero values for the corpora we removed because of the selected date span
+    for corpus in corpora_copy.difference(corpora):
+        result["corpora"][corpus] = {"absolute": 0, "relative": 0.0, "sums": {"absolute": 0, "relative": 0.0}}
     
     if "debug" in form:
         result["DEBUG"] = {"cqp": cqp}
@@ -1541,11 +1651,11 @@ def loglike(form):
     
     maxresults = int(form.get("max", 15))
     
-    set1 = form.get("set1_corpus")
+    set1 = form.get("set1_corpus").upper()
     if isinstance(set1, basestring):
         set1 = set1.split(QUERY_DELIM)
     set1 = set(set1)
-    set2 = form.get("set2_corpus")
+    set2 = form.get("set2_corpus").upper()
     if isinstance(set2, basestring):
         set2 = set2.split(QUERY_DELIM)
     set2 = set(set2)
@@ -1621,7 +1731,7 @@ def lemgram_count(form):
     
     corpora = form.get("corpus")
     if isinstance(corpora, basestring):
-        corpora = corpora.split(QUERY_DELIM)
+        corpora = corpora.upper().split(QUERY_DELIM)
     corpora = set(corpora) if corpora else set()
     
     check_authentication(corpora)
@@ -1686,7 +1796,7 @@ def timespan(form):
        (default: true)
      - per_corpus: include results per corpus
        (default: true)
-     - from: from this date and time (optional)
+     - from: from this date and time, on the format 20150513063500 or 2015-05-13 06:35:00 (times optional) (optional)
      - to: to this date and time (optional)
     """
     
@@ -1695,12 +1805,13 @@ def timespan(form):
     assert_key("spans", form, r"(true|false)")
     assert_key("combined", form, r"(true|false)")
     assert_key("per_corpus", form, r"(true|false)")
-    assert_key("from", form, r"^\d{14}$")
-    assert_key("to", form, r"^\d{14}$")
+    assert_key("strategy", form, r"^[123]$")
+    assert_key("from", form, r"^(\d{8}\d{6}?|\d{4}-\d{2}-\d{2}( \d{2}:\d{2}:\d{2})?)$")
+    assert_key("to", form, r"^(\d{8}\d{6}?|\d{4}-\d{2}-\d{2}( \d{2}:\d{2}:\d{2})?)$")
     
     corpora = form.get("corpus")
     if isinstance(corpora, basestring):
-        corpora = corpora.split(QUERY_DELIM)
+        corpora = corpora.upper().split(QUERY_DELIM)
     corpora = sorted(set(corpora))
     
     use_cache = bool(not form.get("cache", "").lower() == "false" and config.CACHE_DIR)
@@ -1711,10 +1822,15 @@ def timespan(form):
     spans = (form.get("spans", "").lower() == "true")
     combined = (not form.get("combined", "").lower() == "false")
     per_corpus = (not form.get("per_corpus", "").lower() == "false")
+    strategy = int(form.get("strategy", "1"))
     fromdate = form.get("from")
     todate = form.get("to")
     
-    shorten = {"y": 4, "m": 6, "d": 8, "h": 10, "n": 12, "s": 14}
+    if fromdate or todate:
+        if not fromdate or not todate:
+            raise ValueError("When using 'from' or 'to', both need to be specified.")
+    
+    shorten = {"y": 4, "m": 7, "d": 10, "h": 13, "n": 16, "s": 19}
 
     unique_id = os.getenv("UNIQUE_ID")
     
@@ -1725,7 +1841,7 @@ def timespan(form):
                      per_corpus,
                      fromdate,
                      todate,
-                     str(corpora))
+                     sorted(corpora))
         cachefile = os.path.join(config.CACHE_DIR, "timespan_%s" % (get_hash(cachedata)))
         
         if os.path.exists(cachefile):
@@ -1752,16 +1868,31 @@ def timespan(form):
 
         fromto = ""
     
-        if fromdate:
-            fromto = " AND datefrom >= %s" % fromdate
-        if todate:
-            fromto += " AND dateto <= %s" % todate
+        if strategy == 1:
+            if fromdate and todate:
+                fromto = " AND ((datefrom >= %s AND dateto <= %s) OR (datefrom <= %s AND dateto >= %s))" % (conn.escape(fromdate), conn.escape(todate), conn.escape(fromdate), conn.escape(todate))
+        elif strategy == 2:
+            if todate:
+                fromto += " AND datefrom <= %s" % conn.escape(todate)
+            if fromdate:
+                fromto = " AND dateto >= %s" % conn.escape(fromdate)
+        elif strategy == 3:
+            if fromdate:
+                fromto = " AND datefrom >= %s" % conn.escape(fromdate)
+            if todate:
+                fromto += " AND dateto <= %s" % conn.escape(todate)
 
-        # We do the granularity truncation and summation in the DB query, which is much faster than doing it afterwards
-        sql = "SELECT corpus, left(datefrom, " + str(shorten[granularity]) + ") as df, left(dateto, " + str(shorten[granularity]) + ") as dt, sum(tokens) FROM timespans WHERE corpus IN " + corpora_sql + fromto + " GROUP BY corpus, df, dt;"
+        # We do the granularity truncation and summation in the DB query if we can (depending on strategy), since it's much faster than doing it afterwards
+        
+        timedata_corpus = "timedata_date" if granularity in ("y", "m", "d") else "timedata"
+        if strategy == 1:
+            # We need the full dates for this strategy, so no truncating the results
+            sql = "SELECT corpus, datefrom AS df, dateto AS dt, SUM(tokens) FROM " + timedata_corpus + " WHERE corpus IN " + corpora_sql + fromto + " GROUP BY corpus, df, dt ORDER BY NULL;"
+        else:
+            sql = "SELECT corpus, LEFT(datefrom, " + str(shorten[granularity]) + ") AS df, LEFT(dateto, " + str(shorten[granularity]) + ") AS dt, SUM(tokens) FROM " + timedata_corpus + " WHERE corpus IN " + corpora_sql + fromto + " GROUP BY corpus, df, dt ORDER BY NULL;"
         cursor.execute(sql)
         
-        ns["result"] = timespan_calculator(cursor, granularity, spans, combined, per_corpus)
+        ns["result"] = timespan_calculator(cursor, granularity=granularity, spans=spans, combined=combined, per_corpus=per_corpus, strategy=strategy)
 
         if use_cache:
             tmpfile = "%s.%s" % (cachefile, unique_id)
@@ -1780,7 +1911,7 @@ def timespan(form):
     return ns["result"]
 
 
-def timespan_calculator(timedata, granularity="y", spans=False, combined=True, per_corpus=True):
+def timespan_calculator(timedata, granularity="y", spans=False, combined=True, per_corpus=True, strategy=1):
     """Calculates timespan information for corpora.
 
     The required parameters are
@@ -1799,6 +1930,8 @@ def timespan_calculator(timedata, granularity="y", spans=False, combined=True, p
     
     import datetime
     from dateutil.relativedelta import relativedelta
+    
+    gs = {"y": 4, "m": 6, "d": 8, "h": 10, "n": 12, "s": 14}
 
     def strftime(dt, fmt):
         """Python datetime.strftime < 1900 workaround, taken from https://gist.github.com/2000837"""
@@ -1847,7 +1980,6 @@ def timespan_calculator(timedata, granularity="y", spans=False, combined=True, p
     def shorten(date, g):
         date = str(date)
         alt = 1 if len(date) % 2 else 0  # Handle years with three digits
-        gs = {"y": 4, "m": 6, "d": 8, "h": 10, "n": 12, "s": 14}
         return int(date[:gs[g]-alt])
         
     points = not spans
@@ -1873,31 +2005,60 @@ def timespan_calculator(timedata, granularity="y", spans=False, combined=True, p
     
     rows = defaultdict(list)
     nodes = defaultdict(set)
+    
+    datemin = "00000101" if granularity in ("y", "m", "d") else "00000101000000"
+    datemax = "99991231" if granularity in ("y", "m", "d") else "99991231235959"
 
     for row in timedata:
         # corpus, datefrom, dateto, tokens
         corpus = row[0]
-        if granularity in "hns":
-            datefrom = row[1]
-            if datefrom and len(datefrom) < 13: datefrom = datefrom + "000000"
-            dateto = row[2]
-            if dateto and len(dateto) < 13: dateto = dateto + "235959"
-            datefrom = shorten(datefrom, granularity) if not row[1] == "" else ""
-            dateto = shorten(dateto, granularity) if not row[2] == "" else ""
-        else:
-            datefrom = shorten(row[1], granularity) if not row[1] == "" else ""
-            dateto = shorten(row[2], granularity) if not row[2] == "" else ""
+        datefrom = filter(lambda x: x.isdigit(), str(row[1])) if row[1] else ""
+        if datefrom == "0" * len(datefrom):
+            datefrom = ""
+        dateto = filter(lambda x: x.isdigit(), str(row[2])) if row[2] else ""
+        if dateto == "0" * len(dateto):
+            dateto = ""
+        datefrom_short = shorten(datefrom, granularity) if datefrom else ""
+        dateto_short = shorten(dateto, granularity) if dateto else ""
+        
+        if strategy == 1:
+            # Some overlaps permitted
+            # (t1 >= t1' AND t2 <= t2') OR (t1 <= t1' AND t2 >= t2')
+            if not datefrom_short == dateto_short:
+                if not datefrom[gs[granularity]:] == datemin[gs[granularity]:]:
+                    # Add 1 to datefrom_short
+                    datefrom_short = plusminusone(str(datefrom_short), add, df)
+                    
+                if not dateto[gs[granularity]:] == datemax[gs[granularity]:]:
+                    # Subtract 1 from dateto_short
+                    dateto_short = plusminusone(str(dateto_short), add, df, negative=True)
+                
+                # Check that datefrom is still before dateto
+                if not datefrom < dateto:
+                    continue
+        elif strategy == 2:
+            # All overlaps permitted
+            # t1 <= t2' AND t2 >= t1'
+            pass
+        elif strategy == 3:
+            # Strict matching. No overlaps tolerated.
+            # t1 >= t1' AND t2 <= t2'
+            
+            if not datefrom_short == dateto_short:
+                continue
+
+                
         tokens = int(row[3])
 
-        r = {"datefrom": datefrom, "dateto": dateto, "corpus": corpus, "tokens": tokens}
+        r = {"datefrom": datefrom_short, "dateto": dateto_short, "corpus": corpus, "tokens": tokens}
         if combined:
             rows["__combined__"].append(r)
-            nodes["__combined__"].add(("f", datefrom))
-            nodes["__combined__"].add(("t", dateto))
+            nodes["__combined__"].add(("f", datefrom_short))
+            nodes["__combined__"].add(("t", dateto_short))
         if per_corpus:
             rows[corpus].append(r)
-            nodes[corpus].add(("f", datefrom))
-            nodes[corpus].add(("t", dateto))
+            nodes[corpus].add(("f", datefrom_short))
+            nodes[corpus].add(("t", dateto_short))
     
     corpusnodes = dict((k, sorted(v, key=lambda x: (x[1], x[0]))) for k, v in nodes.iteritems())
 
@@ -1977,7 +2138,7 @@ def relations(form):
     
     corpora = form.get("corpus")
     if isinstance(corpora, basestring):
-        corpora = corpora.split(QUERY_DELIM)
+        corpora = corpora.upper().split(QUERY_DELIM)
     corpora = set(corpora)
     
     check_authentication(corpora)
@@ -1992,10 +2153,10 @@ def relations(form):
     maxresults = int(form.get("max", 15))
     minfreqsql = " AND freq >= %s" % minfreq if minfreq else ""
     
-    checksum_data = ("".join(sorted(corpora)),
+    checksum_data = (sorted(corpora),
                      word,
                      search_type,
-                     minfreqsql,
+                     minfreq,
                      sortby,
                      maxresults)
     checksum = get_hash(checksum_data)
@@ -2035,14 +2196,14 @@ def relations(form):
         for corpus in corpora:
             corpus_table = config.DBTABLE + "_" + corpus.upper()
 
-            selects.append((corpus.upper(), u"(SELECT S1.string as head, S1.pos as headpos, F.rel, S2.string as dep, S2.pos as deppos, S2.stringextra as depextra, F.freq, R.freq as rel_freq, HR.freq as head_rel_freq, DR.freq as dep_rel_freq, " + conn.string_literal(corpus.upper()) + u" AS corpus, F.id " +
-                            u"FROM `" + corpus_table + "_strings` as S1, `" + corpus_table + "_strings` as S2, `" + corpus_table + "` AS F, `" + corpus_table + "_rel` AS R, `" + corpus_table + "_head_rel` AS HR, `" + corpus_table + "_dep_rel` AS DR " +
+            selects.append((corpus.upper(), u"(SELECT S1.string AS head, S1.pos AS headpos, F.rel, S2.string AS dep, S2.pos AS deppos, S2.stringextra AS depextra, F.freq, R.freq AS rel_freq, HR.freq AS head_rel_freq, DR.freq AS dep_rel_freq, " + conn.string_literal(corpus.upper()) + u" AS corpus, F.id " +
+                            u"FROM `" + corpus_table + "_strings` AS S1, `" + corpus_table + "_strings` AS S2, `" + corpus_table + "` AS F, `" + corpus_table + "_rel` AS R, `" + corpus_table + "_head_rel` AS HR, `" + corpus_table + "_dep_rel` AS DR " +
                             u"WHERE S1.string = " + lemgram_sql + " COLLATE utf8_bin AND F.head = S1.id AND S2.id = F.dep " +
                             minfreqsql +
                             u"AND F.bfhead = 1 AND F.bfdep = 1 AND F.rel = R.rel AND F.head = HR.head AND F.rel = HR.rel AND F.dep = DR.dep AND F.rel = DR.rel)"
                             ))
-            selects.append((None, u"(SELECT S1.string as head, S1.pos as headpos, F.rel, S2.string as dep, S2.pos as deppos, S2.stringextra as depextra, F.freq, R.freq as rel_freq, HR.freq as head_rel_freq, DR.freq as dep_rel_freq, " + conn.string_literal(corpus.upper()) + u" AS corpus, F.id " +
-                            u"FROM `" + corpus_table + "_strings` as S1, `" + corpus_table + "_strings` as S2, `" + corpus_table + "` AS F, `" + corpus_table + "_rel` AS R, `" + corpus_table + "_head_rel` AS HR, `" + corpus_table + "_dep_rel` AS DR " +
+            selects.append((None, u"(SELECT S1.string AS head, S1.pos AS headpos, F.rel, S2.string AS dep, S2.pos AS deppos, S2.stringextra AS depextra, F.freq, R.freq AS rel_freq, HR.freq AS head_rel_freq, DR.freq AS dep_rel_freq, " + conn.string_literal(corpus.upper()) + u" AS corpus, F.id " +
+                            u"FROM `" + corpus_table + "_strings` AS S1, `" + corpus_table + "_strings` AS S2, `" + corpus_table + "` AS F, `" + corpus_table + "_rel` AS R, `" + corpus_table + "_head_rel` AS HR, `" + corpus_table + "_dep_rel` AS DR " +
                             u"WHERE S2.string = " + lemgram_sql + " COLLATE utf8_bin AND F.dep = S2.id AND S1.id = F.head " +
                             minfreqsql +
                             u"AND F.bfhead = 1 AND F.bfdep = 1 AND F.rel = R.rel AND F.head = HR.head AND F.rel = HR.rel AND F.dep = DR.dep AND F.rel = DR.rel)"
@@ -2054,14 +2215,14 @@ def relations(form):
         for corpus in corpora:
             corpus_table = config.DBTABLE + "_" + corpus.upper()
     
-            selects.append((corpus.upper(), u"(SELECT S1.string as head, S1.pos as headpos, F.rel, S2.string as dep, S2.pos as deppos, S2.stringextra as depextra, F.freq, R.freq as rel_freq, HR.freq as head_rel_freq, DR.freq as dep_rel_freq, " + conn.string_literal(corpus.upper()) + u" AS corpus, F.id " +
-                            u"FROM `" + corpus_table + "_strings` as S1, `" + corpus_table + "_strings` as S2, `" + corpus_table + "` AS F, `" + corpus_table + "_rel` AS R, `" + corpus_table + "_head_rel` AS HR, `" + corpus_table + "_dep_rel` AS DR " +
+            selects.append((corpus.upper(), u"(SELECT S1.string AS head, S1.pos AS headpos, F.rel, S2.string AS dep, S2.pos AS deppos, S2.stringextra AS depextra, F.freq, R.freq AS rel_freq, HR.freq AS head_rel_freq, DR.freq AS dep_rel_freq, " + conn.string_literal(corpus.upper()) + u" AS corpus, F.id " +
+                            u"FROM `" + corpus_table + "_strings` AS S1, `" + corpus_table + "_strings` AS S2, `" + corpus_table + "` AS F, `" + corpus_table + "_rel` AS R, `" + corpus_table + "_head_rel` AS HR, `" + corpus_table + "_dep_rel` AS DR " +
                             u"WHERE S1.string = " + word_sql + " AND F.head = S1.id AND F.wfhead = 1 AND S2.id = F.dep " +
                             minfreqsql +
                             u"AND F.rel = R.rel AND F.head = HR.head AND F.rel = HR.rel AND F.dep = DR.dep AND F.rel = DR.rel)"
                             ))
-            selects.append((None, u"(SELECT S1.string as head, S1.pos as headpos, F.rel, S2.string as dep, S2.pos as deppos, S2.stringextra as depextra, F.freq, R.freq as rel_freq, HR.freq as head_rel_freq, DR.freq as dep_rel_freq, " + conn.string_literal(corpus.upper()) + u" AS corpus, F.id " +
-                            u"FROM `" + corpus_table + "_strings` as S1, `" + corpus_table + "_strings` as S2, `" + corpus_table + "` AS F, `" + corpus_table + "_rel` AS R, `" + corpus_table + "_head_rel` AS HR, `" + corpus_table + "_dep_rel` AS DR " +
+            selects.append((None, u"(SELECT S1.string AS head, S1.pos AS headpos, F.rel, S2.string AS dep, S2.pos AS deppos, S2.stringextra AS depextra, F.freq, R.freq AS rel_freq, HR.freq AS head_rel_freq, DR.freq AS dep_rel_freq, " + conn.string_literal(corpus.upper()) + u" AS corpus, F.id " +
+                            u"FROM `" + corpus_table + "_strings` AS S1, `" + corpus_table + "_strings` AS S2, `" + corpus_table + "` AS F, `" + corpus_table + "_rel` AS R, `" + corpus_table + "_head_rel` AS HR, `" + corpus_table + "_dep_rel` AS DR " +
                             u"WHERE S2.string = " + word_sql + " AND F.dep = S2.id AND F.wfdep = 1 AND S1.id = F.head " +
                             minfreqsql +
                             u"AND F.rel = R.rel AND F.head = HR.head AND F.rel = HR.rel AND F.dep = DR.dep AND F.rel = DR.rel)"
@@ -2379,7 +2540,7 @@ def translate_undef(s):
 
 def get_hash(values):
     """Get a hash for a list of values."""
-    return str(zlib.crc32("".join(x.encode("UTF-8") if isinstance(x, unicode) else str(x) for x in values)))
+    return str(zlib.crc32(";".join(x.encode("UTF-8") if isinstance(x, unicode) else str(x) for x in values)))
 
 
 class CQPError(Exception):
@@ -2399,13 +2560,15 @@ def runCQP(command, form, executable=config.CQP_EXECUTABLE, registry=config.CWB_
     Yield one result line at the time, disregarding empty lines.
     If there is an error, raise a CQPError exception.
     """
+    env = os.environ.copy()
+    env["LC_COLLATE"] = config.LC_COLLATE
     encoding = form.get("encoding", config.CQP_ENCODING)
     if not isinstance(command, basestring):
         command = "\n".join(command)
     command = "set PrettyPrint off;\n" + command
     command = command.encode(encoding)
     process = Popen([executable, "-c", "-r", registry],
-                    stdin=PIPE, stdout=PIPE, stderr=PIPE)
+                    stdin=PIPE, stdout=PIPE, stderr=PIPE, env=env)
     reply, error = process.communicate(command)
     if error:
         # remove newlines from the error string:
@@ -2416,11 +2579,9 @@ def runCQP(command, form, executable=config.CQP_EXECUTABLE, registry=config.CWB_
         # Ignore certain errors: 1) "show +attr" for unknown attr, 2) querying unknown structural attribute, 3) calculating statistics for empty results
         if not (attr_ignore and "No such attribute:" in error) and not "is not defined for corpus" in error and not "cl->range && cl->size > 0" in error and not "neither a positional/structural attribute" in error:
             raise CQPError(error)
-    for line in reply.splitlines():
-        # TODO: Current version of CQP can't handle extremely long sentences.
-        # When fixed, remove len() check and move the decode back to reply.decode(encoding, errors="ignore").splitlines()
-        if line and len(line) < 65536:
-            yield line.decode(encoding, errors="ignore")
+    for line in reply.decode(encoding, errors="ignore").splitlines():
+        if line:
+            yield line
 
 
 def run_cwb_scan(corpus, attrs, form, executable=config.CWB_SCAN_EXECUTABLE, registry=config.CWB_REGISTRY):
@@ -2478,7 +2639,7 @@ def print_header():
     print "Content-Type: application/json"
     print "Access-Control-Allow-Origin: *"
     print "Access-Control-Allow-Methods: GET, POST"
-    print "Access-Control-Allow-Headers: Authorization"
+    print "Access-Control-Allow-Headers: Authorization, Content-Type"
     print
 
 

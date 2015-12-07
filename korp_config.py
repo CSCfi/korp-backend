@@ -14,6 +14,9 @@ CWB_REGISTRY = ""
 # (this can be changed by the CGI parameter 'encoding')
 CQP_ENCODING = "UTF-8"
 
+# Locale to use when sorting
+LC_COLLATE = "sv_SE.UTF-8"
+
 # The maximum number of search results that can be returned per query (0 = no limit)
 MAX_KWIC_ROWS = 0
 
@@ -40,4 +43,3 @@ CACHE_DIR = ""
 
 # Max number of rows from count command to cache
 CACHE_MAX_STATS = 5000
-
