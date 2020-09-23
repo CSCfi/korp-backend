@@ -149,6 +149,8 @@ def main_handler(generator):
                             # Yield whitespace to prevent timeout
                             yield " \n"
                         else:
+                            response = korpplugins.call_chain("filter_result",
+                                                              response)
                             yield json.dumps(response)[1:-1] + ",\n"
                 except GeneratorExit:
                     raise
@@ -156,7 +158,10 @@ def main_handler(generator):
                     error = error_handler()
                     yield json.dumps(error)[1:-1] + ",\n"
 
-                yield json.dumps({"time": time.time() - starttime})[1:] + "\n"
+                endtime = time.time()
+                elapsed_time = endtime - starttime
+                korpplugins.call("exit", endtime, elapsed_time)
+                yield json.dumps({"time": elapsed_time})[1:] + "\n"
                 if callback:
                     yield ")"
 
@@ -176,15 +181,22 @@ def main_handler(generator):
                 except:
                     result = error_handler()
 
-                result["time"] = time.time() - starttime
+                endtime = time.time()
+                elapsed_time = endtime - starttime
+                result["time"] = elapsed_time
+
+                result = korpplugins.call_chain("filter_result", result)
 
                 if callback:
                     result = callback + "(" + json.dumps(result, indent=indent) + ")"
                 else:
                     result = json.dumps(result, indent=indent)
+                korpplugins.call("exit", endtime, elapsed_time)
                 yield result
 
+            args = korpplugins.call_chain("filter_args", args)
             starttime = time.time()
+            korpplugins.call("enter", app, request, args, starttime)
             incremental = parse_bool(args, "incremental", False)
             callback = args.get("callback")
             indent = int(args.get("indent", 0))
