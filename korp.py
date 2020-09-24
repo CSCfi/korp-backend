@@ -3389,8 +3389,21 @@ if config.MEMCACHED_SERVERS and not cache_disabled:
 # Set up caching
 setup_cache()
 
+
+def test_decor(generator):
+    """A decorator for testing specifying extra decorators in WSGI
+    endpoint plugins."""
+    @functools.wraps(generator)
+    def decorated(args=None, *pargs, **kwargs):
+        for x in generator(args, *pargs, **kwargs):
+            yield {"test_decor": "Endpoint decorated with test_decor",
+                   "payload": x}
+    return decorated
+
+
 # Load plugins
-korpplugins.load(config.PLUGINS, app.route, main_handler, [prevent_timeout])
+korpplugins.load(config.PLUGINS, app.route, main_handler,
+                 [prevent_timeout, test_decor])
 
 
 if __name__ == "__main__":
