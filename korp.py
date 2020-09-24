@@ -48,6 +48,7 @@ import traceback
 import functools
 import math
 import random
+import korpplugins
 import config
 try:
     import pylibmc
@@ -3372,6 +3373,10 @@ if config.MEMCACHED_SERVERS and not cache_disabled:
 
 # Set up caching
 setup_cache()
+
+# Load plugins
+korpplugins.load(config.PLUGINS, app.route, main_handler, [prevent_timeout])
+
 
 if __name__ == "__main__":
     if len(sys.argv) == 2 and sys.argv[1] == "dev":
