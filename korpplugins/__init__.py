@@ -2,15 +2,17 @@
 """
 Package korpplugins
 
-A class-based proposal for a plugin framework for the Korp backend
+A class-based proposal for a plugin framework for the Korp backend (WSGI
+endpoints marked by a decorator)
 
 The classes are mostly for encapsulation: although the plugin functions are
 instance methods, the instances are singletons.
 
-Registering plugin functions (for KorpFunctionPlugin subclasses) and decorating
-WSGI endpoints for Flask (for KorpEndpointPlugin subclasses) are handled in
-their metaclasses, adapted from or inspired by
-http://martyalchin.com/2008/jan/10/simple-plugin-framework/
+Registering plugin functions (for KorpFunctionPlugin subclasses) is handled in
+the metaclass, adapted from or inspired by
+http://martyalchin.com/2008/jan/10/simple-plugin-framework/, whereas WSGI
+endpoint methods (in KorpEndpointPlugin subclasses) are decorated for Flask
+with the decorator "endpoint".
 """
 
 
@@ -34,58 +36,41 @@ class Singleton(type):
         return cls._instances[cls]
 
 
-class KorpEndpointPluginMetaclass(Singleton):
+class endpoint:
 
-    """This metaclass takes care of decorating appropriately the method
-    "endpoint" of the plugin classes (subclasses of KorpEndpointPlugin),
-    so that Flask recognizes it.
-    """
+    """Decorator class for marking an instance method a WSGI endpoint."""
 
-    def __init__(cls, name, bases, attrs):
-        if bases and cls.route and cls._router and "endpoint" in attrs:
-            # Create a singleton instance and decorate it
-            inst = cls()
-            inst.endpoint = cls._decorate_endpoint(inst.endpoint)
-
-    def _decorate_endpoint(cls, func):
-        for decorator_name in cls.extra_decorators:
-            if decorator_name in cls._extra_decorators:
-                func = cls._extra_decorators[decorator_name](func)
-        return cls._router(cls.route, methods=["GET", "POST"])(
-            cls._main_handler(func))
-
-
-class KorpEndpointPlugin(metaclass=KorpEndpointPluginMetaclass):
-
-    """Actual WSGI endpoint plugin classes inherit from this class.
-    """
-
-    # These static variables should not be changed in subclasses
+    # Global state initialized in the init_decorators static method
     _router = None
     _main_handler = None
     _extra_decorators = None
 
-    # Could we have a class decorator which would get the following as
-    # arguments?
-    # The route string: must be overwritten by subclasses
-    route = None
-    # extra_decorators may contain strings corresponding to other
-    # decorators, such as prevent_timeout.
-    extra_decorators = []
+    def __init__(self, route, *extra_decorators):
+        """Set values based on decorator arguments"""
+        self._route = route
+        self._endpoint_extra_decorators = extra_decorators
 
-    def endpoint(self, args, *pargs, **kwargs):
-        """The method implementing a new WSGI endpoint, to be defined in
-        subclasses.
-        """
-        pass
+    def __call__(self, func):
+        """Return a decorated function"""
+        def wrapper(*args, **kwargs):
+            # KLUDGE/FIXME: The first argument is dummy covering "self" of the
+            # method to be decorated. (Why is that needed? Does this explain it
+            # and provide a more correct solution:
+            # https://stackoverflow.com/q/30104047)
+            return func(None, *args, **kwargs)
+        cls = endpoint
+        for decorator_name in self._endpoint_extra_decorators:
+            if decorator_name in cls._extra_decorators:
+                wrapper = cls._extra_decorators[decorator_name](wrapper)
+        return cls._router(self._route, methods=["GET", "POST"])(
+            cls._main_handler(wrapper))
 
     @staticmethod
     def init_decorators(router, main_handler, extra_decorators):
         """Initialize the decorators marking the endpoint method for Flask.
-        This method should be called before even defining subclasses,
-        as the metaclass uses the values of these static variables.
+        This method should be called before even defining subclasses.
         """
-        cls = KorpEndpointPlugin
+        cls = endpoint
         cls._router = router
         cls._main_handler = main_handler
         cls._extra_decorators = extra_decorators
@@ -122,9 +107,9 @@ class KorpFunctionPluginMetaclass(Singleton):
 class KorpFunctionPlugin(metaclass=KorpFunctionPluginMetaclass):
 
     """Actual function plugin classes are subclasses of this class, with
-    plugin functions as instance methods. All methods whose names begin with a lowercase
-    letter are treated as plugin functions for the plugin mount point
-    of the method name.
+    plugin functions as instance methods. All methods whose names begin
+    with a lowercase letter are treated as plugin functions for the
+    plugin mount point of the method name.
     """
 
     @staticmethod
@@ -168,10 +153,10 @@ def load(plugin_list, router=None, main_handler=None, extra_decorators=[]):
     importing the modules within this package, and use router,
     main_handler and extra_decorators as the decorators for Flask.
     """
-    KorpEndpointPlugin.init_decorators(
+    endpoint.init_decorators(
         router, main_handler,
         dict((decor.__name__, decor) for decor in extra_decorators))
     for plugin in plugin_list:
-        # We could implement a more elaborate or configurable plugin discovery
-        # procedure if needed
+        # We could implement a more elaborate or configurable plugin
+        # discovery procedure if needed
         module = importlib.import_module(__name__ + '.' + plugin)

@@ -17,13 +17,10 @@ except ImportError:
         WRAP_NAME = "wrap_default"
 
 
-class Test1a(korpplugins.KorpEndpointPlugin):
+class Test1a:
 
-    # Could we have a class decorator which would get these as arguments?
-    route = "/test"
-    extra_decorators = ["test_decor"]
-
-    def endpoint(self, args, *pargs, **kwargs):
+    @korpplugins.endpoint("/test", "test_decor")
+    def test(self, args, *pargs, **kwargs):
         """Yield arguments wrapped in ARGS_NAME."""
         yield {pluginconf.ARGS_NAME: args}
 
