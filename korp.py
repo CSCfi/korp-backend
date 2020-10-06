@@ -153,7 +153,7 @@ def main_handler(generator):
                             yield " \n"
                         else:
                             response = FunctionPlugin.call_chain(
-                                "filter_result", response)
+                                "filter_result", response, request, app)
                             yield json.dumps(response)[1:-1] + ",\n"
                 except GeneratorExit:
                     raise
@@ -163,7 +163,8 @@ def main_handler(generator):
 
                 endtime = time.time()
                 elapsed_time = endtime - starttime
-                FunctionPlugin.call("exit", endtime, elapsed_time)
+                FunctionPlugin.call(
+                    "exit_handler", endtime, elapsed_time, request, app)
                 yield json.dumps({"time": elapsed_time})[1:] + "\n"
                 if callback:
                     yield ")"
@@ -188,18 +189,22 @@ def main_handler(generator):
                 elapsed_time = endtime - starttime
                 result["time"] = elapsed_time
 
-                result = FunctionPlugin.call_chain("filter_result", result)
+                result = FunctionPlugin.call_chain(
+                    "filter_result", result, request, app)
 
                 if callback:
                     result = callback + "(" + json.dumps(result, indent=indent) + ")"
                 else:
                     result = json.dumps(result, indent=indent)
-                FunctionPlugin.call("exit", endtime, elapsed_time)
+                FunctionPlugin.call(
+                    "exit_handler", endtime, elapsed_time, request, app)
                 yield result
 
-            args = FunctionPlugin.call_chain("filter_args", args)
+            args = FunctionPlugin.call_chain(
+                "filter_args", args, request, app)
             starttime = time.time()
-            FunctionPlugin.call("enter", app, request, args, starttime)
+            FunctionPlugin.call(
+                "enter_handler", args, starttime, request, app)
             incremental = parse_bool(args, "incremental", False)
             callback = args.get("callback")
             indent = int(args.get("indent", 0))
