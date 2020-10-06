@@ -12,5 +12,5 @@ import korpplugins
 
 class Test2(korpplugins.KorpFunctionPlugin):
 
-    def filter_result(self, d):
+    def filter_result(self, d, *rest):
         return {"wrap2": d}
