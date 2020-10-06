@@ -27,6 +27,7 @@ def test(args):
     yield {pluginconf.ARGS_NAME: args}
 
 
-def filter_result(d):
-    """Wrap the result dictionary in WRAP_NAME."""
-    return {pluginconf.WRAP_NAME: d}
+def filter_result(d, request, app):
+    """Wrap the result dictionary in WRAP_NAME and add "endpoint"."""
+    return {"endpoint": request.endpoint,
+            pluginconf.WRAP_NAME: d}
