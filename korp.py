@@ -149,8 +149,8 @@ def main_handler(generator):
                             # Yield whitespace to prevent timeout
                             yield " \n"
                         else:
-                            response = korpplugins.call_chain("filter_result",
-                                                              response)
+                            response = korpplugins.call_chain(
+                                "filter_result", response, request, app)
                             yield json.dumps(response)[1:-1] + ",\n"
                 except GeneratorExit:
                     raise
@@ -160,7 +160,8 @@ def main_handler(generator):
 
                 endtime = time.time()
                 elapsed_time = endtime - starttime
-                korpplugins.call("exit", endtime, elapsed_time)
+                korpplugins.call(
+                    "exit_handler", endtime, elapsed_time, request, app)
                 yield json.dumps({"time": elapsed_time})[1:] + "\n"
                 if callback:
                     yield ")"
@@ -185,18 +186,20 @@ def main_handler(generator):
                 elapsed_time = endtime - starttime
                 result["time"] = elapsed_time
 
-                result = korpplugins.call_chain("filter_result", result)
+                result = korpplugins.call_chain(
+                    "filter_result", result, request, app)
 
                 if callback:
                     result = callback + "(" + json.dumps(result, indent=indent) + ")"
                 else:
                     result = json.dumps(result, indent=indent)
-                korpplugins.call("exit", endtime, elapsed_time)
+                korpplugins.call(
+                    "exit_handler", endtime, elapsed_time, request, app)
                 yield result
 
-            args = korpplugins.call_chain("filter_args", args)
+            args = korpplugins.call_chain("filter_args", args, request, app)
             starttime = time.time()
-            korpplugins.call("enter", app, request, args, starttime)
+            korpplugins.call("enter_handler", args, starttime, request, app)
             incremental = parse_bool(args, "incremental", False)
             callback = args.get("callback")
             indent = int(args.get("indent", 0))
