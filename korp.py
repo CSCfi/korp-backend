@@ -328,9 +328,12 @@ def corpus_info(args, no_combined_cache=False):
 
     corpora = parse_corpora(args)
 
+    report_undefined_corpora = parse_bool(
+        args, "report_undefined_corpora", False)
+
     # Check if whole query is cached
     if args["cache"]:
-        checksum_combined = get_hash((sorted(corpora),))
+        checksum_combined = get_hash((sorted(corpora), report_undefined_corpora))
         save_cache = []
         combined_cache_key = "%s:info_%s" % (cache_prefix(), checksum_combined)
         with mc_pool.reserve() as mc:
@@ -348,6 +351,9 @@ def corpus_info(args, no_combined_cache=False):
     total_sentences = 0
 
     cmd = []
+
+    if report_undefined_corpora:
+        corpora, undefined_corpora = filter_undefined_corpora(corpora, args)
 
     for corpus in corpora:
         # Check if corpus is cached
@@ -406,6 +412,9 @@ def corpus_info(args, no_combined_cache=False):
     result["total_size"] = total_size
     result["total_sentences"] = total_sentences
 
+    if report_undefined_corpora:
+        result["undefined_corpora"] = undefined_corpora
+
     if args["cache"] and not no_combined_cache:
         # Cache whole query
         with mc_pool.reserve() as mc:
@@ -418,6 +427,70 @@ def corpus_info(args, no_combined_cache=False):
                     result.setdefault("DEBUG", {})
                     result["DEBUG"]["cache_saved"] = True
     yield result
+
+
+def filter_undefined_corpora(corpora, args, strict=True):
+    """Return a pair of a list of defined and a list of undefined corpora
+    in the argument corpora. If strict, try to select each corpus in
+    CQP, otherwise only check the files in the CWB registry directory.
+    """
+
+    # Caching
+    if args["cache"]:
+        checksum_combined = get_hash((corpora, strict))
+        save_cache = []
+        combined_cache_key = (
+            "%s:corpora_defined_%s" % (cache_prefix(), checksum_combined))
+        with mc_pool.reserve() as mc:
+            result = mc.get(combined_cache_key)
+        if result:
+            # Since this is not the result of a command, we cannot
+            # add debug information on using cache to the result.
+            return result
+
+    defined = []
+    undefined = []
+    if strict:
+        # Stricter: detects corpora that have a registry file but
+        # whose data makes CQP regard them as undefined when trying to
+        # use them.
+        cqp = [corpus.upper() + ";" for corpus in corpora]
+        cqp += ["exit"]
+        lines = run_cqp(cqp, errors="report")
+        for line in lines:
+            if line.startswith("CQP Error:"):
+                matchobj = re.match(
+                    r"CQP Error: Corpus ``(.*?)'' is undefined", line)
+                if matchobj:
+                    undefined.append(str(matchobj.group(1)))
+            else:
+                # SKip the rest
+                break
+        if undefined:
+            undefined_set = set(undefined)
+            defined = [corpus for corpus in corpora
+                       if corpus not in undefined_set]
+        else:
+            defined = corpora
+    else:
+        # It is somewhat faster but less reliable to check the
+        # registry only.
+        registry_files = set(os.listdir(config.CWB_REGISTRY))
+        defined = [corpus for corpus in corpora
+                   if corpus.lower() in registry_files]
+        undefined = [corpus for corpus in corpora
+                     if corpus.lower() not in registry_files]
+
+    result = (defined, undefined)
+
+    if args["cache"]:
+        with mc_pool.reserve() as mc:
+            try:
+                saved = mc.add(combined_cache_key, result)
+            except pylibmc.TooBig:
+                pass
+
+    return result
 
 
 ################################################################################
