@@ -73,7 +73,8 @@ class Blueprint(flask.Blueprint):
             # Wrap in possible extra decorators and main_handler
             for decorator_name in extra_decorators + ["main_handler"]:
                 if decorator_name in _endpoint_decorators:
-                    wrapper = _endpoint_decorators[decorator_name](wrapper)
+                    wrapper = functools.update_wrapper(
+                        _endpoint_decorators[decorator_name](wrapper), func)
             wrapped_func = functools.update_wrapper(
                 super(Blueprint, self).route(rule, **options)(wrapper), func)
             # Mark the function as ENDPOINT so that it will not be considered
