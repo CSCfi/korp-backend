@@ -290,9 +290,10 @@ def sleep(args):
 @main_handler
 def info(args):
     """Get version information about list of available corpora."""
+    strict = parse_bool(args, "strict", False)
     if args["cache"]:
         with mc_pool.reserve() as mc:
-            result = mc.get("%s:info" % cache_prefix())
+            result = mc.get("%s:info_%s" % (cache_prefix(), int(strict)))
         if result:
             if "debug" in args:
                 result.setdefault("DEBUG", {})
@@ -302,6 +303,15 @@ def info(args):
 
     corpora = run_cqp("show corpora;")
     version = next(corpora)
+    # CQP "show corpora" lists all corpora in the registry, but some
+    # of them might nevertheless cause a "corpus undefined" error in
+    # CQP, for example, because of missing data, so filter them out.
+    # However, with a large number of corpora, filtering slows down
+    # the info command, so it can be disabled with the parameter
+    # strict=false. Caching the results of filter_undefined_corpora
+    # helps, though.
+    if strict:
+        corpora, _ = filter_undefined_corpora(list(corpora), args)
     protected = []
 
     if config.PROTECTED_FILE:
@@ -312,7 +322,7 @@ def info(args):
 
     if args["cache"]:
         with mc_pool.reserve() as mc:
-            added = mc.add("%s:info" % cache_prefix(), result)
+            added = mc.add("%s:info_%s" % (cache_prefix(), int(strict)), result)
         if added and "debug" in args:
             result.setdefault("DEBUG", {})
             result["DEBUG"]["cache_saved"] = True
