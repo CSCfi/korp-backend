@@ -48,6 +48,7 @@ import traceback
 import functools
 import math
 import random
+import korpplugins
 import config
 try:
     import pylibmc
@@ -91,6 +92,9 @@ app.config["MYSQL_PORT"] = config.DBPORT
 app.config["MYSQL_USE_UNICODE"] = True
 app.config["MYSQL_CURSORCLASS"] = "DictCursor"
 mysql = MySQL(app)
+
+# Shorthand
+FunctionPlugin = korpplugins.KorpFunctionPlugin
 
 
 def main_handler(generator):
@@ -148,6 +152,8 @@ def main_handler(generator):
                             # Yield whitespace to prevent timeout
                             yield " \n"
                         else:
+                            response = FunctionPlugin.call_chain(
+                                "filter_result", response, request, app)
                             yield json.dumps(response)[1:-1] + ",\n"
                 except GeneratorExit:
                     raise
@@ -155,7 +161,11 @@ def main_handler(generator):
                     error = error_handler()
                     yield json.dumps(error)[1:-1] + ",\n"
 
-                yield json.dumps({"time": time.time() - starttime})[1:] + "\n"
+                endtime = time.time()
+                elapsed_time = endtime - starttime
+                FunctionPlugin.call(
+                    "exit_handler", endtime, elapsed_time, request, app)
+                yield json.dumps({"time": elapsed_time})[1:] + "\n"
                 if callback:
                     yield ")"
 
@@ -175,15 +185,26 @@ def main_handler(generator):
                 except:
                     result = error_handler()
 
-                result["time"] = time.time() - starttime
+                endtime = time.time()
+                elapsed_time = endtime - starttime
+                result["time"] = elapsed_time
+
+                result = FunctionPlugin.call_chain(
+                    "filter_result", result, request, app)
 
                 if callback:
                     result = callback + "(" + json.dumps(result, indent=indent) + ")"
                 else:
                     result = json.dumps(result, indent=indent)
+                FunctionPlugin.call(
+                    "exit_handler", endtime, elapsed_time, request, app)
                 yield result
 
+            args = FunctionPlugin.call_chain(
+                "filter_args", args, request, app)
             starttime = time.time()
+            FunctionPlugin.call(
+                "enter_handler", args, starttime, request, app)
             incremental = parse_bool(args, "incremental", False)
             callback = args.get("callback")
             indent = int(args.get("indent", 0))
@@ -3372,6 +3393,23 @@ if config.MEMCACHED_SERVERS and not cache_disabled:
 
 # Set up caching
 setup_cache()
+
+
+def test_decor(generator):
+    """A decorator for testing specifying extra decorators in WSGI
+    endpoint plugins."""
+    @functools.wraps(generator)
+    def decorated(args=None, *pargs, **kwargs):
+        for x in generator(args, *pargs, **kwargs):
+            yield {"test_decor": "Endpoint decorated with test_decor",
+                   "payload": x}
+    return decorated
+
+
+# Load plugins
+korpplugins.load(config.PLUGINS, app.route, main_handler,
+                 [prevent_timeout, test_decor])
+
 
 if __name__ == "__main__":
     if len(sys.argv) == 2 and sys.argv[1] == "dev":
