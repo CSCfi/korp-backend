@@ -3182,10 +3182,13 @@ class Namespace:
     pass
 
 
-def run_cqp(command, encoding=None, executable=config.CQP_EXECUTABLE, registry=config.CWB_REGISTRY, attr_ignore=False):
+def run_cqp(command, encoding=None, executable=config.CQP_EXECUTABLE,
+            registry=config.CWB_REGISTRY, attr_ignore=False, errors="strict"):
     """Call the CQP binary with the given command, and the request data.
     Yield one result line at the time, disregarding empty lines.
-    If there is an error, raise a CQPError exception.
+    If there is an error, raise a CQPError exception, unless the
+    parameter errors is "ignore" or "report" (report errors at the
+    beginning of the output as lines beginning with "CQP Error:").
     """
     env = os.environ.copy()
     env["LC_COLLATE"] = config.LC_COLLATE
@@ -3199,23 +3202,29 @@ def run_cqp(command, encoding=None, executable=config.CQP_EXECUTABLE, registry=c
                                stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE, env=env)
     reply, error = process.communicate(command)
-    if error:
+    if error and errors != "ignore":
         error = error.decode(encoding)
         # Remove newlines from the error string:
         error = re.sub(r"\s+", r" ", error)
-        # Keep only the first CQP error (the rest are consequences):
-        error = re.sub(r"^CQP Error: *", r"", error)
-        error = re.sub(r" *(CQP Error:).*$", r"", error)
-        # Ignore certain errors:
-        # 1) "show +attr" for unknown attr,
-        # 2) querying unknown structural attribute,
-        # 3) calculating statistics for empty results
-        if not (attr_ignore and "No such attribute:" in error) \
-                and "is not defined for corpus" not in error \
-                and "cl->range && cl->size > 0" not in error \
-                and "neither a positional/structural attribute" not in error \
-                and "CL: major error, cannot compose string: invalid UTF8 string passed to cl_string_canonical..." not in error:
-            raise CQPError(error)
+        if errors == "report":
+            # Each error on its own line beginning with "CQP Error"
+            error = re.sub(r" +(CQP Error: *)", r"\n\1", error)
+            for line in error.split("\n"):
+                yield line
+        else:
+            # Keep only the first CQP error (the rest are consequences):
+            error = re.sub(r"^CQP Error: *", r"", error)
+            error = re.sub(r" *(CQP Error:).*$", r"", error)
+            # Ignore certain errors:
+            # 1) "show +attr" for unknown attr,
+            # 2) querying unknown structural attribute,
+            # 3) calculating statistics for empty results
+            if not (attr_ignore and "No such attribute:" in error) \
+                    and "is not defined for corpus" not in error \
+                    and "cl->range && cl->size > 0" not in error \
+                    and "neither a positional/structural attribute" not in error \
+                    and "CL: major error, cannot compose string: invalid UTF8 string passed to cl_string_canonical..." not in error:
+                raise CQPError(error)
     for line in reply.decode(encoding, errors="ignore").split(
             "\n"):  # We don't use splitlines() since it might split on special characters in the data
         if line:
