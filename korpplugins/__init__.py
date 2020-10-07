@@ -16,6 +16,7 @@ with the decorator "endpoint".
 """
 
 
+import functools
 import importlib
 
 from collections import defaultdict
@@ -61,7 +62,8 @@ class endpoint:
         cls = endpoint
         for decorator_name in self._endpoint_extra_decorators:
             if decorator_name in cls._extra_decorators:
-                wrapper = cls._extra_decorators[decorator_name](wrapper)
+                wrapper = functools.update_wrapper(
+                    cls._extra_decorators[decorator_name](wrapper), func)
         return cls._router(self._route, methods=["GET", "POST"])(
             cls._main_handler(wrapper))
 
