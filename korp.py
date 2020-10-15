@@ -2348,7 +2348,7 @@ def lemgram_count(args):
     result = {}
     with app.app_context():
         cursor = mysql.connection.cursor()
-        cursor.execute(sql)
+        sql_execute(cursor, sql)
 
     for row in cursor:
         # We need this check here, since a search for "hår" also returns "här" and "har".
@@ -2363,6 +2363,10 @@ def lemgram_count(args):
 def sql_escape(s):
     with app.app_context():
         return mysql.connection.escape_string(s).decode("utf-8") if isinstance(s, str) else s
+
+
+def sql_execute(cursor, sql):
+    cursor.execute(sql)
 
 
 ################################################################################
@@ -2468,7 +2472,7 @@ def timespan(args, no_combined_cache=False):
                       str(shorten[granularity]) + ") AS dt, SUM(tokens) AS sum FROM " + timedata_corpus + \
                       " WHERE corpus IN " + corpora_sql + fromto + " GROUP BY corpus, df, dt ORDER BY NULL;"
             cursor = mysql.connection.cursor()
-            cursor.execute(sql)
+            sql_execute(cursor, sql)
         else:
             cursor = tuple()
 
@@ -2691,10 +2695,10 @@ def relations(args):
 
     with app.app_context():
         cursor = mysql.connection.cursor()
-        cursor.execute("SET @@session.long_query_time = 1000;")
+        sql_execute(cursor, "SET @@session.long_query_time = 1000;")
 
         # Get available tables
-        cursor.execute("SHOW TABLES LIKE '" + config.DBWPTABLE + "_%';")
+        sql_execute(cursor, "SHOW TABLES LIKE '" + config.DBWPTABLE + "_%';")
         tables = set(list(x.values())[0] for x in cursor)
         # Filter out corpora which don't exist in database
         corpora = [x for x in corpora if config.DBWPTABLE + "_" + x.upper() in tables]
@@ -2768,14 +2772,14 @@ def relations(args):
                 yield {"progress_corpora": list(corpora_rest)}
                 progress_count = 0
                 for sql in selects:
-                    cursor.execute(sql[1])
+                    sql_execute(cursor, sql[1])
                     cursor_result.extend(list(cursor))
                     if sql[0]:
                         yield {"progress_%d" % progress_count: {"corpus": sql[0]}}
                         progress_count += 1
             else:
                 sql = " UNION ALL ".join(x[1] for x in selects)
-                cursor.execute(sql)
+                sql_execute(cursor, sql)
                 cursor_result = cursor
 
     rels = {}
@@ -2898,12 +2902,12 @@ def relations_sentences(args):
 
     with app.app_context():
         cursor = mysql.connection.cursor()
-        cursor.execute("SET @@session.long_query_time = 1000;")
+        sql_execute(cursor, "SET @@session.long_query_time = 1000;")
         selects = []
         counts = []
 
         # Get available tables
-        cursor.execute("SHOW TABLES LIKE '" + config.DBWPTABLE + "_%';")
+        sql_execute(cursor, "SHOW TABLES LIKE '" + config.DBWPTABLE + "_%';")
         tables = set(list(x.values())[0] for x in cursor)
         # Filter out corpora which doesn't exist in database
         source = sorted([x for x in iter(source.items()) if config.DBWPTABLE + "_" + x[0].upper() in tables])
@@ -2927,14 +2931,14 @@ def relations_sentences(args):
                           corpus_table_sentences + "` as S WHERE S.id IN " + ids_list + ")")
 
         sql_count = " UNION ALL ".join(counts)
-        cursor.execute(sql_count)
+        sql_execute(cursor, sql_count)
 
         corpus_hits = {}
         for row in cursor:
             corpus_hits[row["corpus"]] = int(row["freq"])
 
         sql = " UNION ALL ".join(selects) + (" LIMIT %d, %d" % (start, end - start + 1))
-        cursor.execute(sql)
+        sql_execute(cursor, sql)
 
         querytime = time.time() - querystarttime
         corpora_dict = {}
