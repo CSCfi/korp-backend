@@ -200,11 +200,11 @@ def main_handler(generator):
                     "exit_handler", endtime, elapsed_time, request, app)
                 yield result
 
-            args = FunctionPlugin.call_chain(
-                "filter_args", args, request, app)
             starttime = time.time()
             FunctionPlugin.call(
                 "enter_handler", args, starttime, request, app)
+            args = FunctionPlugin.call_chain(
+                "filter_args", args, request, app)
             incremental = parse_bool(args, "incremental", False)
             callback = args.get("callback")
             indent = int(args.get("indent", 0))
