@@ -148,11 +148,14 @@ class KorpFunctionPlugin(metaclass=KorpFunctionPluginMetaclass):
         """Call the plugins in mount_point, collecting return values to a list
 
         Call the plugins in mount_point with args and kwargs in sequence,
-        collect their return values to a list and return it.
+        collect their return values to a list and return it. Return values
+        None are ignored.
         """
         result = []
         for func in KorpFunctionPlugin._plugin_funcs.get(mount_point, []):
-            result.append(func(*args, **kwargs))
+            retval = func(*args, **kwargs)
+            if retval is not None:
+                result.append(retval)
         return result
 
     @staticmethod
@@ -161,11 +164,14 @@ class KorpFunctionPlugin(metaclass=KorpFunctionPluginMetaclass):
 
         Return the value of arg1 as passed through the plugins in
         mount_point, with the return value of the preceding plugin
-        function as the arg1 value of the following one. *args and
-        **kwargs are passed to each function as they are.
+        function as the arg1 value of the following one, unless it is
+        None, in which case arg1 is kept as is. *args and **kwargs are
+        passed to each function as they are.
         """
         for func in KorpFunctionPlugin._plugin_funcs.get(mount_point, []):
-            arg1 = func(arg1, *args, **kwargs)
+            retval = func(arg1, *args, **kwargs)
+            if retval is not None:
+                arg1 = retval
         return arg1
 
 

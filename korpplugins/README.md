@@ -135,10 +135,6 @@ object containing information on the request, and `app` is the Flask
 application object. For example, the endpoint name is available as
 `request.endpoint`.
 
-The `filter_*` mount points can of course return the input value as
-is, without modifications, for example, when logging the input value
-or a part of it.
-
 Please note that each plugin class is instantiated only once (it is a
 singleton), so the possible state stored in `self` is shared by all
 invocations.
@@ -153,9 +149,12 @@ are called in the order in which the plugin modules are listed in
 defining a plugin function for a mount point, they are called in their
 order of definition in the module.
 
-For `filter_*` mount points, the value returned by the first plugin is
-passed as the argument `args` or `result` to the second plugin, and
-similarly for the second and third plugin and so on.
+For `filter_*` mount points, the value returned by a plugin is passed
+as the first argument to function of the next plugin. However, if the
+returned value is `None`, either explicitly or if the function has no
+`return` statement with a value, the value is ignored and the argument
+is passed as is to the next plugin. Thus, a plugin function that does
+not modify the value need not return it.
 
 An example of a mount-point plugin function:
 
