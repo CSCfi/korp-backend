@@ -2366,6 +2366,7 @@ def sql_escape(s):
 
 
 def sql_execute(cursor, sql):
+    sql = FunctionPlugin.call_chain("filter_sql", sql, request, app)
     cursor.execute(sql)
 
 

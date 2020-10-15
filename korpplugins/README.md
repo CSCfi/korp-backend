@@ -118,6 +118,10 @@ points are in use:
   standard output and standard error encoded as `bytes`, and returns
   the modified values as a pair.
 
+- `filter_sql(self, sql, request, app)`: Modifies the SQL statement
+  `sql` to be passed to the MySQL/MariaDB database server and returns
+  the modified value.
+
 - `enter_handler(self, args, starttime, request, app)`: Called near
   the beginning of a view function for an endpoint. `args` is a `dict`
   of arguments to the endpoint and `starttime` is the current time as
