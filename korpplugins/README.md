@@ -24,8 +24,15 @@ The names of plugins (modules or subpackages) to be used are defined
 in the list `PLUGINS` in `config.py`. If a plugin module is not found,
 a warning is output to the standard output.
 
-The configuration of `korpplugins` is in the module `korpplugins.config`.
-Currently, only one configuration variable is recognized:
+The configuration of `korpplugins` is in the module
+`korpplugins.config`. Currently, the following configuration variables
+are recognized:
+
+- `HANDLE_NOT_FOUND`: What to do when a plugin is not found:
+    - `"error"`: Throw an error.
+    - `"warn"` (default): Output a warning to the standard error but
+      continue.
+    - `"ignore"`: Silently ignore.
 
 - `LOAD_VERBOSITY`: What `korpplugins` outputs when loading plugins:
     - `0`: nothing

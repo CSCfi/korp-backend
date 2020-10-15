@@ -28,6 +28,7 @@ except ImportError:
     class pluginconf:
         # When loading, print plugin module names but not function names
         LOAD_VERBOSITY = 1
+        HANDLE_NOT_FOUND = "warn"
 
 
 def _print_verbose(verbosity, *args):
@@ -183,5 +184,11 @@ def load(plugin_list, router=None, main_handler=None, extra_decorators=[]):
         try:
             module = importlib.import_module(__name__ + '.' + plugin)
         except ModuleNotFoundError as e:
-            print("Warning: Plugin \"" + plugin + "\" not found:", e,
-                  file=sys.stderr)
+            if pluginconf.HANDLE_NOT_FOUND == "ignore":
+                continue
+            msg_base = "Plugin \"" + plugin + "\" not found:"
+            if pluginconf.HANDLE_NOT_FOUND == "warn":
+                print("Warning:", msg_base, e, file=sys.stderr)
+            else:
+                print(msg_base, file=sys.stderr)
+                raise
