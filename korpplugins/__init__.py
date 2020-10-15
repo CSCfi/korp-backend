@@ -18,6 +18,7 @@ with the decorator "endpoint".
 
 import functools
 import importlib
+import sys
 
 from collections import defaultdict
 
@@ -161,4 +162,8 @@ def load(plugin_list, router=None, main_handler=None, extra_decorators=[]):
     for plugin in plugin_list:
         # We could implement a more elaborate or configurable plugin
         # discovery procedure if needed
-        module = importlib.import_module(__name__ + '.' + plugin)
+        try:
+            module = importlib.import_module(__name__ + '.' + plugin)
+        except ModuleNotFoundError as e:
+            print("Warning: Plugin \"" + plugin + "\" not found:", e,
+                  file=sys.stderr)
