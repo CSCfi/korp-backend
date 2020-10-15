@@ -1,0 +1,12 @@
+
+"""
+korpplugins.config
+
+Configuration module for korpplugins.
+"""
+
+
+# LOAD_VERBOSITY controls what is output to the console when loading
+# plugins: 0 = nothing, 1 = plugin names only, 2 = plugin names and
+# plugin function names
+LOAD_VERBOSITY = 1

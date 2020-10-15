@@ -14,14 +14,27 @@ Plugins are defined as Python modules or subpackages within the
 package `korpplugins`. (This might be relaxed so that plugin modules
 or packages would not need to be within `korpplugins`.)
 
-The names of plugins (modules or subpackages) to be used are defined
-in the list `PLUGINS` in `config.py`.
-
-Plugin packages can use separate configuration modules (customarily
-also named `config`) within the package.
-
 Both WSGI endpoint plugins and mount-point plugins can be defined in
 the same plugin module.
+
+
+## Configuration
+
+The names of plugins (modules or subpackages) to be used are defined
+in the list `PLUGINS` in `config.py`. If a plugin module is not found,
+a warning is output to the standard output.
+
+The configuration of `korpplugins` is in the module `korpplugins.config`.
+Currently, only one configuration variable is recognized:
+
+- `LOAD_VERBOSITY`: What `korpplugins` outputs when loading plugins:
+    - `0`: nothing
+    - `1` (default): the names of loaded plugins only
+    - `2`: the names of loaded plugins and the plugin functions
+      handling a route or registered for a plugin mount point
+
+Individual plugin packages can use separate configuration modules
+(customarily also named `config`) within the package.
 
 
 ## Plugin implementing a new WSGI endpoint
