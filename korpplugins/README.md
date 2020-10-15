@@ -88,6 +88,16 @@ points are in use:
   `dict` `result` returned by any endpoint (view function) and returns
   the modified value.
 
+- `filter_cqp_input(self, cqp, request, app)`: Modifies the raw CQP
+  input string `cqp`, typically consisting of multiple CQP commands,
+  already encoded as `bytes`, to be passed to the CQP executable, and
+  returns the modified value.
+
+- `filter_cqp_output(self, (output, error), request, app)`: Modifies
+  the raw output of the CQP executable, a pair consisting of the
+  standard output and standard error encoded as `bytes`, and returns
+  the modified values as a pair.
+
 - `enter_handler(self, args, starttime, request, app)`: Called near
   the beginning of a view function for an endpoint. `args` is a `dict`
   of arguments to the endpoint and `starttime` is the current time as
@@ -105,6 +115,10 @@ object containing information on the request, and `app` is the Flask
 application object. For example, the endpoint name is available as
 `request.endpoint`.
 
+The `filter_*` mount points can of course return the input value as
+is, without modifications, for example, when logging the input value
+or a part of it.
+
 Please note that each plugin class is instantiated only once (it is a
 singleton), so the possible state stored in `self` is shared by all
 invocations.
@@ -119,9 +133,9 @@ are called in the order in which the plugin modules are listed in
 defining a plugin function for a mount point, they are called in their
 order of definition in the module.
 
-For `filter_args` and `filter_result`, the value returned by the first
-plugin is passed as the argument `args` or `result` to the second
-plugin, and similarly for the second and third plugin and so on.
+For `filter_*` mount points, the value returned by the first plugin is
+passed as the argument `args` or `result` to the second plugin, and
+similarly for the second and third plugin and so on.
 
 An example of a mount-point plugin function:
 

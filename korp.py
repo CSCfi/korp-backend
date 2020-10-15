@@ -3215,11 +3215,15 @@ def run_cqp(command, encoding=None, executable=config.CQP_EXECUTABLE, registry=c
         command = "\n".join(command)
     command = "set PrettyPrint off;\n" + command
     command = command.encode(encoding)
+    command = FunctionPlugin.call_chain(
+        "filter_cqp_input", command, request, app)
     process = subprocess.Popen([executable, "-c", "-r", registry],
                                stdin=subprocess.PIPE,
                                stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE, env=env)
     reply, error = process.communicate(command)
+    reply, error = FunctionPlugin.call_chain(
+        "filter_cqp_output", (reply, error), request, app)
     if error:
         error = error.decode(encoding)
         # Remove newlines from the error string:
