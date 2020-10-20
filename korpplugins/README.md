@@ -14,14 +14,34 @@ Plugins are defined as Python modules or subpackages within the
 package `korpplugins`. (This might be relaxed so that plugin modules
 or packages would not need to be within `korpplugins`.)
 
-The names of plugins (modules or subpackages) to be used are defined
-in the list `PLUGINS` in `config.py`.
-
-Plugin packages can use separate configuration modules (customarily
-also named `config`) within the package.
-
 Both WSGI endpoint plugins and mount-point plugins can be defined in
 the same plugin module.
+
+
+## Configuration
+
+The names of plugins (modules or subpackages) to be used are defined
+in the list `PLUGINS` in `config.py`. If a plugin module is not found,
+a warning is output to the standard output.
+
+The configuration of `korpplugins` is in the module
+`korpplugins.config`. Currently, the following configuration variables
+are recognized:
+
+- `HANDLE_NOT_FOUND`: What to do when a plugin is not found:
+    - `"error"`: Throw an error.
+    - `"warn"` (default): Output a warning to the standard error but
+      continue.
+    - `"ignore"`: Silently ignore.
+
+- `LOAD_VERBOSITY`: What `korpplugins` outputs when loading plugins:
+    - `0`: nothing
+    - `1` (default): the names of loaded plugins only
+    - `2`: the names of loaded plugins and the plugin functions
+      handling a route or registered for a plugin mount point
+
+Individual plugin packages can use separate configuration modules
+(customarily also named `config`) within the package.
 
 
 ## Plugin implementing a new WSGI endpoint
@@ -88,6 +108,20 @@ points are in use:
   `dict` `result` returned by any endpoint (view function) and returns
   the modified value.
 
+- `filter_cqp_input(self, cqp, request, app)`: Modifies the raw CQP
+  input string `cqp`, typically consisting of multiple CQP commands,
+  already encoded as `bytes`, to be passed to the CQP executable, and
+  returns the modified value.
+
+- `filter_cqp_output(self, (output, error), request, app)`: Modifies
+  the raw output of the CQP executable, a pair consisting of the
+  standard output and standard error encoded as `bytes`, and returns
+  the modified values as a pair.
+
+- `filter_sql(self, sql, request, app)`: Modifies the SQL statement
+  `sql` to be passed to the MySQL/MariaDB database server and returns
+  the modified value.
+
 - `enter_handler(self, args, starttime, request, app)`: Called near
   the beginning of a view function for an endpoint. `args` is a `dict`
   of arguments to the endpoint and `starttime` is the current time as
@@ -99,6 +133,12 @@ points are in use:
   a response). `endtime` is the current time as seconds since the
   epoch as a floating point number, and `elapsed_time` is the time
   spent in the view function. Does not return a value.
+
+- `error(self, error, exc, request, app)`: Called after an exception
+  has occurred. `error` is the `dict` to be returned in JSON as
+  `ERROR`, with keys `type` and `value` (and `traceback` if
+  `debug=true` had been specified), and `exc` contains exception
+  information as returned by `sys.exc_info()`.
 
 For each mount point, the argument `request` is the Flask request
 object containing information on the request, and `app` is the Flask
@@ -119,9 +159,12 @@ are called in the order in which the plugin modules are listed in
 defining a plugin function for a mount point, they are called in their
 order of definition in the module.
 
-For `filter_args` and `filter_result`, the value returned by the first
-plugin is passed as the argument `args` or `result` to the second
-plugin, and similarly for the second and third plugin and so on.
+For `filter_*` mount points, the value returned by a plugin is passed
+as the first argument to function of the next plugin. However, if the
+returned value is `None`, either explicitly or if the function has no
+`return` statement with a value, the value is ignored and the argument
+is passed as is to the next plugin. Thus, a plugin function that does
+not modify the value need not return it.
 
 An example of a mount-point plugin function:
 

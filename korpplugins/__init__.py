@@ -18,8 +18,23 @@ with the decorator "endpoint".
 
 import functools
 import importlib
+import sys
 
 from collections import defaultdict
+
+try:
+    from . import config as pluginconf
+except ImportError:
+    class pluginconf:
+        # When loading, print plugin module names but not function names
+        LOAD_VERBOSITY = 1
+        HANDLE_NOT_FOUND = "warn"
+
+
+def _print_verbose(verbosity, *args):
+    """Print args if plugin loading is configured to be verbose."""
+    if verbosity <= pluginconf.LOAD_VERBOSITY:
+        print(*args)
 
 
 class Singleton(type):
@@ -64,6 +79,8 @@ class endpoint:
             if decorator_name in cls._extra_decorators:
                 wrapper = functools.update_wrapper(
                     cls._extra_decorators[decorator_name](wrapper), func)
+        _print_verbose(
+            2, "  route \"" + self._route + "\": endpoint " + func.__qualname__)
         return cls._router(self._route, methods=["GET", "POST"])(
             cls._main_handler(wrapper))
 
@@ -104,6 +121,8 @@ class KorpFunctionPluginMetaclass(Singleton):
                 if (name[0].islower() and callable(attr)
                         and name not in cls._caller_funcs):
                     cls._plugin_funcs[name].append(attr)
+                    _print_verbose(2, ("  mount point \"" + name
+                                       + "\": function " + attr.__qualname__))
 
 
 class KorpFunctionPlugin(metaclass=KorpFunctionPluginMetaclass):
@@ -129,11 +148,14 @@ class KorpFunctionPlugin(metaclass=KorpFunctionPluginMetaclass):
         """Call the plugins in mount_point, collecting return values to a list
 
         Call the plugins in mount_point with args and kwargs in sequence,
-        collect their return values to a list and return it.
+        collect their return values to a list and return it. Return values
+        None are ignored.
         """
         result = []
         for func in KorpFunctionPlugin._plugin_funcs.get(mount_point, []):
-            result.append(func(*args, **kwargs))
+            retval = func(*args, **kwargs)
+            if retval is not None:
+                result.append(retval)
         return result
 
     @staticmethod
@@ -142,11 +164,14 @@ class KorpFunctionPlugin(metaclass=KorpFunctionPluginMetaclass):
 
         Return the value of arg1 as passed through the plugins in
         mount_point, with the return value of the preceding plugin
-        function as the arg1 value of the following one. *args and
-        **kwargs are passed to each function as they are.
+        function as the arg1 value of the following one, unless it is
+        None, in which case arg1 is kept as is. *args and **kwargs are
+        passed to each function as they are.
         """
         for func in KorpFunctionPlugin._plugin_funcs.get(mount_point, []):
-            arg1 = func(arg1, *args, **kwargs)
+            retval = func(arg1, *args, **kwargs)
+            if retval is not None:
+                arg1 = retval
         return arg1
 
 
@@ -159,6 +184,17 @@ def load(plugin_list, router=None, main_handler=None, extra_decorators=[]):
         router, main_handler,
         dict((decor.__name__, decor) for decor in extra_decorators))
     for plugin in plugin_list:
+        _print_verbose(1, "Loading Korp plugin \"" + plugin + "\"")
         # We could implement a more elaborate or configurable plugin
         # discovery procedure if needed
-        module = importlib.import_module(__name__ + '.' + plugin)
+        try:
+            module = importlib.import_module(__name__ + '.' + plugin)
+        except ModuleNotFoundError as e:
+            if pluginconf.HANDLE_NOT_FOUND == "ignore":
+                continue
+            msg_base = "Plugin \"" + plugin + "\" not found:"
+            if pluginconf.HANDLE_NOT_FOUND == "warn":
+                print("Warning:", msg_base, e, file=sys.stderr)
+            else:
+                print(msg_base, file=sys.stderr)
+                raise
