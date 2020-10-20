@@ -138,6 +138,7 @@ def main_handler(generator):
                                    }}
                 if "debug" in args:
                     error["ERROR"]["traceback"] = "".join(traceback.format_exception(*exc)).splitlines()
+                FunctionPlugin.call("error", error, exc, request, app)
                 return error
 
             def incremental_json(ff):

@@ -134,6 +134,12 @@ points are in use:
   epoch as a floating point number, and `elapsed_time` is the time
   spent in the view function. Does not return a value.
 
+- `error(self, error, exc, request, app)`: Called after an exception
+  has occurred. `error` is the `dict` to be returned in JSON as
+  `ERROR`, with keys `type` and `value` (and `traceback` if
+  `debug=true` had been specified), and `exc` contains exception
+  information as returned by `sys.exc_info()`.
+
 For each mount point, the argument `request` is the Flask request
 object containing information on the request, and `app` is the Flask
 application object. For example, the endpoint name is available as
