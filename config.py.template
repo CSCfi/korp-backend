@@ -42,6 +42,9 @@ DBWPTABLE = "relations"
 DBUSER = ""
 DBPASSWORD = ""
 
+# Database collation for lemgram data
+DBCOLLATE_LEMGRAM = "utf8_bin"
+
 # URL to authentication server
 AUTH_SERVER = ""
 
