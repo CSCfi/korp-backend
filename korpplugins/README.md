@@ -140,10 +140,10 @@ points are in use:
   `debug=true` had been specified), and `exc` contains exception
   information as returned by `sys.exc_info()`.
 
-For each mount point, the argument `request` is the Flask request
-object containing information on the request, and `app` is the Flask
-application object. For example, the endpoint name is available as
-`request.endpoint`.
+For each mount point, the argument `request` is the actual Flask
+request object (not a proxy for the request) containing information on
+the request, and `app` is the Flask application object. For example,
+the endpoint name is available as `request.endpoint`.
 
 Please note that each plugin class is instantiated only once (it is a
 singleton), so the possible state stored in `self` is shared by all

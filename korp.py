@@ -93,8 +93,39 @@ app.config["MYSQL_USE_UNICODE"] = True
 app.config["MYSQL_CURSORCLASS"] = "DictCursor"
 mysql = MySQL(app)
 
-# Shorthand
-FunctionPlugin = korpplugins.KorpFunctionPlugin
+
+def _get_request_obj(request_obj):
+    """Return the actual non-proxy Request object for request_obj.
+
+    If request_obj is None, get the object for the global request proxy.
+    """
+    request_obj = request_obj or request
+    try:
+        return request_obj._get_current_object()
+    except AttributeError:
+        return request_obj
+
+
+def plugins_call(*args, request_obj=None):
+    """Shorthand for korpplugins.KorpFunctionPlugin.call
+
+    Appends request and app to the arguments passed to forward. If
+    request_obj is not None, use it as the request, otherwise use the
+    actual object behind the global request proxy.
+    """
+    korpplugins.KorpFunctionPlugin.call(
+        *args, _get_request_obj(request_obj), app)
+
+
+def plugins_call_chain(*args, request_obj=None):
+    """Shorthand for korpplugins.KorpFunctionPlugin.call_chain
+
+    Appends request and app to the arguments passed to forward. If
+    request_obj is not None, use it as the request, otherwise use the
+    actual object behind the global request proxy.
+    """
+    return korpplugins.KorpFunctionPlugin.call_chain(
+        *args, _get_request_obj(request_obj), app)
 
 
 def main_handler(generator):
@@ -138,7 +169,7 @@ def main_handler(generator):
                                    }}
                 if "debug" in args:
                     error["ERROR"]["traceback"] = "".join(traceback.format_exception(*exc)).splitlines()
-                FunctionPlugin.call("error", error, exc, request, app)
+                plugins_call("error", error, exc)
                 return error
 
             def incremental_json(ff):
@@ -153,8 +184,8 @@ def main_handler(generator):
                             # Yield whitespace to prevent timeout
                             yield " \n"
                         else:
-                            response = FunctionPlugin.call_chain(
-                                "filter_result", response, request, app)
+                            response = plugins_call_chain(
+                                "filter_result", response)
                             yield json.dumps(response)[1:-1] + ",\n"
                 except GeneratorExit:
                     raise
@@ -164,8 +195,7 @@ def main_handler(generator):
 
                 endtime = time.time()
                 elapsed_time = endtime - starttime
-                FunctionPlugin.call(
-                    "exit_handler", endtime, elapsed_time, request, app)
+                plugins_call("exit_handler", endtime, elapsed_time)
                 yield json.dumps({"time": elapsed_time})[1:] + "\n"
                 if callback:
                     yield ")"
@@ -190,22 +220,18 @@ def main_handler(generator):
                 elapsed_time = endtime - starttime
                 result["time"] = elapsed_time
 
-                result = FunctionPlugin.call_chain(
-                    "filter_result", result, request, app)
+                result = plugins_call_chain("filter_result", result)
 
                 if callback:
                     result = callback + "(" + json.dumps(result, indent=indent) + ")"
                 else:
                     result = json.dumps(result, indent=indent)
-                FunctionPlugin.call(
-                    "exit_handler", endtime, elapsed_time, request, app)
+                plugins_call("exit_handler", endtime, elapsed_time)
                 yield result
 
             starttime = time.time()
-            FunctionPlugin.call(
-                "enter_handler", args, starttime, request, app)
-            args = FunctionPlugin.call_chain(
-                "filter_args", args, request, app)
+            plugins_call("enter_handler", args, starttime)
+            args = plugins_call_chain("filter_args", args)
             incremental = parse_bool(args, "incremental", False)
             callback = args.get("callback")
             indent = int(args.get("indent", 0))
@@ -1551,10 +1577,15 @@ def count(args):
             result["corpora"][corpus][i + 1]["cqp"] = subcqp[i]
 
     with ThreadPoolExecutor(max_workers=config.PARALLEL_THREADS) as executor:
+        # The query worker is outside the request context, so we pass the
+        # current request object to it, so that the plugin mount points in
+        # run_cqp can use it.
         future_query = dict((executor.submit(count_function, corpus=corpus, cqp=cqp, group_by=group_by,
                                              within=within[corpus], ignore_case=ignore_case,
                                              expand_prequeries=expand_prequeries,
-                                             use_cache=args["cache"]), corpus)
+                                             use_cache=args["cache"],
+                                             request=request._get_current_object()),
+                             corpus)
                             for corpus in corpora if corpus not in zero_hits)
 
         for future in futures.as_completed(future_query):
@@ -1870,10 +1901,15 @@ def count_time(args):
         yield {"progress_corpora": corpora}
 
     with ThreadPoolExecutor(max_workers=config.PARALLEL_THREADS) as executor:
+        # The query worker is outside the request context, so we pass the
+        # current request object to it, so that the plugin mount points in
+        # run_cqp can use it.
         future_query = dict((executor.submit(count_query_worker, corpus=corpus, cqp=cqp, group_by=group_by,
                                              within=within[corpus],
                                              expand_prequeries=expand_prequeries,
-                                             use_cache=args["cache"]), corpus)
+                                             use_cache=args["cache"],
+                                             request=request._get_current_object()),
+                             corpus)
                             for corpus in corpora)
 
         for future in futures.as_completed(future_query):
@@ -1991,7 +2027,8 @@ def count_time(args):
 
 
 def count_query_worker(corpus, cqp, group_by, within, ignore_case=[], cut=None, expand_prequeries=True,
-                       use_cache=False):
+                       use_cache=False, request=request):
+    # request is used only for passing to run_cqp
     subcqp = None
     if isinstance(cqp[-1], list):
         subcqp = cqp[-1]
@@ -2060,7 +2097,7 @@ def count_query_worker(corpus, cqp, group_by, within, ignore_case=[], cut=None, 
 
     cmd += ["exit;"]
 
-    lines = run_cqp(cmd)
+    lines = run_cqp(cmd, request=request)
 
     # Skip CQP version
     next(lines)
@@ -2093,9 +2130,10 @@ def count_query_worker(corpus, cqp, group_by, within, ignore_case=[], cut=None, 
 
 
 def count_query_worker_simple(corpus, cqp, group_by, within=None, ignore_case=[], expand_prequeries=True,
-                              use_cache=False):
+                              use_cache=False, request=request):
     """Worker for simple statistics queries which can be run using cwb-scan-corpus.
     Currently only used for searches on [] (any word)."""
+    # request is only for signature compatibity with count_query_worker
     lines = list(run_cwb_scan(corpus, [g[0] for g in group_by]))
     nr_hits = 0
 
@@ -2367,7 +2405,7 @@ def sql_escape(s):
 
 
 def sql_execute(cursor, sql):
-    sql = FunctionPlugin.call_chain("filter_sql", sql, request, app)
+    sql = plugins_call_chain("filter_sql", sql)
     cursor.execute(sql)
 
 
@@ -3209,10 +3247,15 @@ class Namespace:
     pass
 
 
-def run_cqp(command, encoding=None, executable=config.CQP_EXECUTABLE, registry=config.CWB_REGISTRY, attr_ignore=False):
+def run_cqp(command, encoding=None, executable=config.CQP_EXECUTABLE,
+            registry=config.CWB_REGISTRY, attr_ignore=False,
+            request=request):
     """Call the CQP binary with the given command, and the request data.
     Yield one result line at the time, disregarding empty lines.
     If there is an error, raise a CQPError exception.
+
+    request is used only for passing to plugins, as run_cqp is also
+    called outside Flask request context.
     """
     env = os.environ.copy()
     env["LC_COLLATE"] = config.LC_COLLATE
@@ -3221,15 +3264,15 @@ def run_cqp(command, encoding=None, executable=config.CQP_EXECUTABLE, registry=c
         command = "\n".join(command)
     command = "set PrettyPrint off;\n" + command
     command = command.encode(encoding)
-    command = FunctionPlugin.call_chain(
-        "filter_cqp_input", command, request, app)
+    command = plugins_call_chain(
+        "filter_cqp_input", command, request_obj=request)
     process = subprocess.Popen([executable, "-c", "-r", registry],
                                stdin=subprocess.PIPE,
                                stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE, env=env)
     reply, error = process.communicate(command)
-    reply, error = FunctionPlugin.call_chain(
-        "filter_cqp_output", (reply, error), request, app)
+    reply, error = plugins_call_chain(
+        "filter_cqp_output", (reply, error), request_obj=request)
     if error:
         error = error.decode(encoding)
         # Remove newlines from the error string:
