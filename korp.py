@@ -93,8 +93,21 @@ app.config["MYSQL_USE_UNICODE"] = True
 app.config["MYSQL_CURSORCLASS"] = "DictCursor"
 mysql = MySQL(app)
 
-# Shorthand
-FunctionPlugin = korpplugins.KorpFunctionPlugin
+
+def plugins_call(*args):
+    """Shorthand for korpplugins.KorpFunctionPlugin.call
+
+    Appends request and app to the arguments passed to forward.
+    """
+    korpplugins.KorpFunctionPlugin.call(*args, request, app)
+
+
+def plugins_call_chain(*args):
+    """Shorthand for korpplugins.KorpFunctionPlugin.call_chain
+
+    Appends request and app to the arguments passed to forward.
+    """
+    return korpplugins.KorpFunctionPlugin.call_chain(*args, request, app)
 
 
 def main_handler(generator):
@@ -138,7 +151,7 @@ def main_handler(generator):
                                    }}
                 if "debug" in args:
                     error["ERROR"]["traceback"] = "".join(traceback.format_exception(*exc)).splitlines()
-                FunctionPlugin.call("error", error, exc, request, app)
+                plugins_call("error", error, exc)
                 return error
 
             def incremental_json(ff):
@@ -153,8 +166,8 @@ def main_handler(generator):
                             # Yield whitespace to prevent timeout
                             yield " \n"
                         else:
-                            response = FunctionPlugin.call_chain(
-                                "filter_result", response, request, app)
+                            response = plugins_call_chain(
+                                "filter_result", response)
                             yield json.dumps(response)[1:-1] + ",\n"
                 except GeneratorExit:
                     raise
@@ -164,8 +177,7 @@ def main_handler(generator):
 
                 endtime = time.time()
                 elapsed_time = endtime - starttime
-                FunctionPlugin.call(
-                    "exit_handler", endtime, elapsed_time, request, app)
+                plugins_call("exit_handler", endtime, elapsed_time)
                 yield json.dumps({"time": elapsed_time})[1:] + "\n"
                 if callback:
                     yield ")"
@@ -190,22 +202,18 @@ def main_handler(generator):
                 elapsed_time = endtime - starttime
                 result["time"] = elapsed_time
 
-                result = FunctionPlugin.call_chain(
-                    "filter_result", result, request, app)
+                result = plugins_call_chain("filter_result", result)
 
                 if callback:
                     result = callback + "(" + json.dumps(result, indent=indent) + ")"
                 else:
                     result = json.dumps(result, indent=indent)
-                FunctionPlugin.call(
-                    "exit_handler", endtime, elapsed_time, request, app)
+                plugins_call("exit_handler", endtime, elapsed_time)
                 yield result
 
             starttime = time.time()
-            FunctionPlugin.call(
-                "enter_handler", args, starttime, request, app)
-            args = FunctionPlugin.call_chain(
-                "filter_args", args, request, app)
+            plugins_call("enter_handler", args, starttime)
+            args = plugins_call_chain("filter_args", args)
             incremental = parse_bool(args, "incremental", False)
             callback = args.get("callback")
             indent = int(args.get("indent", 0))
@@ -2367,7 +2375,7 @@ def sql_escape(s):
 
 
 def sql_execute(cursor, sql):
-    sql = FunctionPlugin.call_chain("filter_sql", sql, request, app)
+    sql = plugins_call_chain("filter_sql", sql)
     cursor.execute(sql)
 
 
@@ -3221,15 +3229,13 @@ def run_cqp(command, encoding=None, executable=config.CQP_EXECUTABLE, registry=c
         command = "\n".join(command)
     command = "set PrettyPrint off;\n" + command
     command = command.encode(encoding)
-    command = FunctionPlugin.call_chain(
-        "filter_cqp_input", command, request, app)
+    command = plugins_call_chain("filter_cqp_input", command)
     process = subprocess.Popen([executable, "-c", "-r", registry],
                                stdin=subprocess.PIPE,
                                stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE, env=env)
     reply, error = process.communicate(command)
-    reply, error = FunctionPlugin.call_chain(
-        "filter_cqp_output", (reply, error), request, app)
+    reply, error = plugins_call_chain("filter_cqp_output", (reply, error))
     if error:
         error = error.decode(encoding)
         # Remove newlines from the error string:
