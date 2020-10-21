@@ -290,9 +290,10 @@ def sleep(args):
 @main_handler
 def info(args):
     """Get version information about list of available corpora."""
+    strict = parse_bool(args, "strict", False)
     if args["cache"]:
         with mc_pool.reserve() as mc:
-            result = mc.get("%s:info" % cache_prefix())
+            result = mc.get("%s:info_%s" % (cache_prefix(), int(strict)))
         if result:
             if "debug" in args:
                 result.setdefault("DEBUG", {})
@@ -302,6 +303,15 @@ def info(args):
 
     corpora = run_cqp("show corpora;")
     version = next(corpora)
+    # CQP "show corpora" lists all corpora in the registry, but some
+    # of them might nevertheless cause a "corpus undefined" error in
+    # CQP, for example, because of missing data, so filter them out.
+    # However, with a large number of corpora, filtering slows down
+    # the info command, so it can be disabled with the parameter
+    # strict=false. Caching the results of filter_undefined_corpora
+    # helps, though.
+    if strict:
+        corpora, _ = filter_undefined_corpora(list(corpora), args)
     protected = []
 
     if config.PROTECTED_FILE:
@@ -312,7 +322,7 @@ def info(args):
 
     if args["cache"]:
         with mc_pool.reserve() as mc:
-            added = mc.add("%s:info" % cache_prefix(), result)
+            added = mc.add("%s:info_%s" % (cache_prefix(), int(strict)), result)
         if added and "debug" in args:
             result.setdefault("DEBUG", {})
             result["DEBUG"]["cache_saved"] = True
@@ -328,9 +338,12 @@ def corpus_info(args, no_combined_cache=False):
 
     corpora = parse_corpora(args)
 
+    report_undefined_corpora = parse_bool(
+        args, "report_undefined_corpora", False)
+
     # Check if whole query is cached
     if args["cache"]:
-        checksum_combined = get_hash((sorted(corpora),))
+        checksum_combined = get_hash((sorted(corpora), report_undefined_corpora))
         save_cache = []
         combined_cache_key = "%s:info_%s" % (cache_prefix(), checksum_combined)
         with mc_pool.reserve() as mc:
@@ -348,6 +361,9 @@ def corpus_info(args, no_combined_cache=False):
     total_sentences = 0
 
     cmd = []
+
+    if report_undefined_corpora:
+        corpora, undefined_corpora = filter_undefined_corpora(corpora, args)
 
     for corpus in corpora:
         # Check if corpus is cached
@@ -406,6 +422,9 @@ def corpus_info(args, no_combined_cache=False):
     result["total_size"] = total_size
     result["total_sentences"] = total_sentences
 
+    if report_undefined_corpora:
+        result["undefined_corpora"] = undefined_corpora
+
     if args["cache"] and not no_combined_cache:
         # Cache whole query
         with mc_pool.reserve() as mc:
@@ -418,6 +437,70 @@ def corpus_info(args, no_combined_cache=False):
                     result.setdefault("DEBUG", {})
                     result["DEBUG"]["cache_saved"] = True
     yield result
+
+
+def filter_undefined_corpora(corpora, args, strict=True):
+    """Return a pair of a list of defined and a list of undefined corpora
+    in the argument corpora. If strict, try to select each corpus in
+    CQP, otherwise only check the files in the CWB registry directory.
+    """
+
+    # Caching
+    if args["cache"]:
+        checksum_combined = get_hash((corpora, strict))
+        save_cache = []
+        combined_cache_key = (
+            "%s:corpora_defined_%s" % (cache_prefix(), checksum_combined))
+        with mc_pool.reserve() as mc:
+            result = mc.get(combined_cache_key)
+        if result:
+            # Since this is not the result of a command, we cannot
+            # add debug information on using cache to the result.
+            return result
+
+    defined = []
+    undefined = []
+    if strict:
+        # Stricter: detects corpora that have a registry file but
+        # whose data makes CQP regard them as undefined when trying to
+        # use them.
+        cqp = [corpus.upper() + ";" for corpus in corpora]
+        cqp += ["exit"]
+        lines = run_cqp(cqp, errors="report")
+        for line in lines:
+            if line.startswith("CQP Error:"):
+                matchobj = re.match(
+                    r"CQP Error: Corpus ``(.*?)'' is undefined", line)
+                if matchobj:
+                    undefined.append(str(matchobj.group(1)))
+            else:
+                # SKip the rest
+                break
+        if undefined:
+            undefined_set = set(undefined)
+            defined = [corpus for corpus in corpora
+                       if corpus not in undefined_set]
+        else:
+            defined = corpora
+    else:
+        # It is somewhat faster but less reliable to check the
+        # registry only.
+        registry_files = set(os.listdir(config.CWB_REGISTRY))
+        defined = [corpus for corpus in corpora
+                   if corpus.lower() in registry_files]
+        undefined = [corpus for corpus in corpora
+                     if corpus.lower() not in registry_files]
+
+    result = (defined, undefined)
+
+    if args["cache"]:
+        with mc_pool.reserve() as mc:
+            try:
+                saved = mc.add(combined_cache_key, result)
+            except pylibmc.TooBig:
+                pass
+
+    return result
 
 
 ################################################################################
@@ -3182,10 +3265,13 @@ class Namespace:
     pass
 
 
-def run_cqp(command, encoding=None, executable=config.CQP_EXECUTABLE, registry=config.CWB_REGISTRY, attr_ignore=False):
+def run_cqp(command, encoding=None, executable=config.CQP_EXECUTABLE,
+            registry=config.CWB_REGISTRY, attr_ignore=False, errors="strict"):
     """Call the CQP binary with the given command, and the request data.
     Yield one result line at the time, disregarding empty lines.
-    If there is an error, raise a CQPError exception.
+    If there is an error, raise a CQPError exception, unless the
+    parameter errors is "ignore" or "report" (report errors at the
+    beginning of the output as lines beginning with "CQP Error:").
     """
     env = os.environ.copy()
     env["LC_COLLATE"] = config.LC_COLLATE
@@ -3199,23 +3285,29 @@ def run_cqp(command, encoding=None, executable=config.CQP_EXECUTABLE, registry=c
                                stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE, env=env)
     reply, error = process.communicate(command)
-    if error:
+    if error and errors != "ignore":
         error = error.decode(encoding)
         # Remove newlines from the error string:
         error = re.sub(r"\s+", r" ", error)
-        # Keep only the first CQP error (the rest are consequences):
-        error = re.sub(r"^CQP Error: *", r"", error)
-        error = re.sub(r" *(CQP Error:).*$", r"", error)
-        # Ignore certain errors:
-        # 1) "show +attr" for unknown attr,
-        # 2) querying unknown structural attribute,
-        # 3) calculating statistics for empty results
-        if not (attr_ignore and "No such attribute:" in error) \
-                and "is not defined for corpus" not in error \
-                and "cl->range && cl->size > 0" not in error \
-                and "neither a positional/structural attribute" not in error \
-                and "CL: major error, cannot compose string: invalid UTF8 string passed to cl_string_canonical..." not in error:
-            raise CQPError(error)
+        if errors == "report":
+            # Each error on its own line beginning with "CQP Error"
+            error = re.sub(r" +(CQP Error: *)", r"\n\1", error)
+            for line in error.split("\n"):
+                yield line
+        else:
+            # Keep only the first CQP error (the rest are consequences):
+            error = re.sub(r"^CQP Error: *", r"", error)
+            error = re.sub(r" *(CQP Error:).*$", r"", error)
+            # Ignore certain errors:
+            # 1) "show +attr" for unknown attr,
+            # 2) querying unknown structural attribute,
+            # 3) calculating statistics for empty results
+            if not (attr_ignore and "No such attribute:" in error) \
+                    and "is not defined for corpus" not in error \
+                    and "cl->range && cl->size > 0" not in error \
+                    and "neither a positional/structural attribute" not in error \
+                    and "CL: major error, cannot compose string: invalid UTF8 string passed to cl_string_canonical..." not in error:
+                raise CQPError(error)
     for line in reply.decode(encoding, errors="ignore").split(
             "\n"):  # We don't use splitlines() since it might split on special characters in the data
         if line:
