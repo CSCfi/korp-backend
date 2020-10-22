@@ -199,3 +199,18 @@ class KorpLogger(korpplugins.KorpFunctionPlugin):
         """Debug log SQL statements sql"""
         logger = KorpLogger._get_logger(request)
         self._log(logger.debug, "debug", "SQL", sql)
+
+    def log(self, levelname, category, item, value, request, app):
+        """Log with the given level, category, item and value
+
+        levelname should be one of "debug", "info", "warning", "error"
+        and "critical", corresponding to the methods in
+        logging.Logger.
+
+        This general logging method can be called from other plugins
+        via korpplugins.KorpFunctionPlugin.call("log", ...) whenever
+        they wish to log something.
+        """
+        logger = KorpLogger._get_logger(request)
+        self._log(getattr(logger, levelname, logger.info),
+                  category, item, value)
