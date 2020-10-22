@@ -9,12 +9,18 @@ plugin uses Python's standard logging module.
 
 Configuration variables for the plugin are specified in
 korpplugins.logger.config.
+
+Note that the plugin currently handles concurrent logging from multiple worker
+processes (such as when running the Korp backend with Gunicorn) only by writing
+their log entries to separate files, so the configuration variable
+LOG_FILENAME_FORMAT should contain a placeholder for the process id ({pid}).
+The separate files can be concatenated later manually.
 """
 
 
 import logging
-from logging.handlers import TimedRotatingFileHandler
 import os
+import os.path
 import time
 
 import korpplugins
@@ -76,13 +82,15 @@ class KorpLogger(korpplugins.KorpFunctionPlugin):
         super().__init__()
         self._logger = logging.getLogger(__name__)
         self._logger.setLevel(pluginconf.LOG_LEVEL)
-        os.makedirs(pluginconf.LOG_DIR, exist_ok=True)
-        logfile = pluginconf.LOG_DIR + "/" + pluginconf.LOG_FILENAME
-        if pluginconf.LOG_ROTATE_WHEN:
-            handler = TimedRotatingFileHandler(
-                logfile, pluginconf.LOG_ROTATE_WHEN)
-        else:
-            handler = logging.FileHandler(logfile)
+        tm = time.localtime()
+        logfile = (os.path.join(pluginconf.LOG_BASEDIR,
+                                pluginconf.LOG_FILENAME_FORMAT)
+                   .format(year=tm.tm_year, mon=tm.tm_mon, mday=tm.tm_mday,
+                           hour=tm.tm_hour, min=tm.tm_min, sec=tm.tm_sec,
+                           pid=os.getpid()))
+        logdir = os.path.split(logfile)[0]
+        os.makedirs(logdir, exist_ok=True)
+        handler = logging.FileHandler(logfile)
         handler.setFormatter(logging.Formatter(pluginconf.LOG_FORMAT))
         self._logger.addHandler(handler)
 
