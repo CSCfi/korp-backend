@@ -1,0 +1,45 @@
+
+"""
+korpplugins.logger.config
+
+Configuration module for korpplugins.logger.
+"""
+
+
+import logging
+
+
+LOG_DIR = "/v/korp/log/korp-py"
+
+LOG_FILENAME = "korp.log"
+
+# Default log level
+LOG_LEVEL = logging.INFO
+
+# Log message format string using the percent formatting for logging.Formatter.
+# In addition to the standard keys, the format may (and typically should)
+# contain "request" (an integer), which identifies the request object
+# (id(request._get_current_object())). %(message)s contains the actual message
+# of the form "Item: Value".
+LOG_FORMAT = ("[korp.py %(levelname)s %(process)d:%(request)d @ %(asctime)s]"
+              " %(message)s")
+
+LOG_ROTATE_WHEN = "M"
+
+# Categories of information to be logged: all available are listed. If a
+# category is omitted from the list, information marked with that category is
+# not logged. The category is not included in the log message.
+LOG_CATEGORIES = [
+    "auth",
+    "debug",
+    "env",
+    "load",
+    "params",
+    "referrer",
+    "times",
+    "userinfo",
+]
+
+# A list of individual log items (e.g. "IP", "User-agent") to be excluded from
+# logging.
+LOG_EXCLUDE_ITEMS = []
