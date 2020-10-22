@@ -25,6 +25,10 @@ LOG_FILENAME_FORMAT = ("{year}{mon:02}{mday:02}/korp-{year}{mon:02}{mday:02}"
 # Default log level
 LOG_LEVEL = logging.INFO
 
+# If True, change the log level to logging.DEBUG if the query parameters in the
+# HTTP request contain "debug=true".
+LOG_ENABLE_DEBUG_PARAM = True
+
 # Log message format string using the percent formatting for logging.Formatter.
 # In addition to the standard keys, the format may (and typically should)
 # contain "request" (an integer), which identifies the request object

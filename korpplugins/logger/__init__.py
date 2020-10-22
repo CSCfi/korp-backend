@@ -99,11 +99,11 @@ class KorpLogger(korpplugins.KorpFunctionPlugin):
     def _init_logging(self, request, args):
         """Initialize logging; called once per request (in enter_handler)"""
         request_id = KorpLogger._get_request_id(request)
+        loglevel = (logging.DEBUG if (pluginconf.LOG_ENABLE_DEBUG_PARAM
+                                      and "debug" in args)
+                    else pluginconf.LOG_LEVEL)
         logger = LevelLoggerAdapter(
-            self._logger, {"request": request_id},
-            logging.DEBUG if "debug" in args else pluginconf.LOG_LEVEL)
-        # logger = logging.LoggerAdapter(self._logger, {"request": request_id})
-        # logger.setLevel(pluginconf.LOG_LEVEL)
+            self._logger, {"request": request_id}, loglevel)
         self._loggers[request_id] = logger
         return logger
 
