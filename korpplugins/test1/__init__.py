@@ -27,7 +27,7 @@ class Test1a:
 
 class Test1b(korpplugins.KorpFunctionPlugin):
 
-    def filter_result(self, d, request, app):
+    def filter_result(self, d, request):
         """Wrap the result dictionary in WRAP_NAME and add "endpoint"."""
         return {"endpoint": request.endpoint,
                 pluginconf.WRAP_NAME: d}
