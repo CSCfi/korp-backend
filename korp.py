@@ -109,23 +109,23 @@ def _get_request_obj(request_obj):
 def plugins_call(*args, request_obj=None):
     """Shorthand for korpplugins.KorpFunctionPlugin.call
 
-    Appends request and app to the arguments passed to forward. If
-    request_obj is not None, use it as the request, otherwise use the
-    actual object behind the global request proxy.
+    Appends request to the arguments passed forward. If request_obj is
+    not None, use it as the request, otherwise use the actual object
+    behind the global request proxy.
     """
     korpplugins.KorpFunctionPlugin.call(
-        *args, _get_request_obj(request_obj), app)
+        *args, _get_request_obj(request_obj))
 
 
 def plugins_call_chain(*args, request_obj=None):
     """Shorthand for korpplugins.KorpFunctionPlugin.call_chain
 
-    Appends request and app to the arguments passed to forward. If
-    request_obj is not None, use it as the request, otherwise use the
-    actual object behind the global request proxy.
+    Appends request to the arguments passed forward. If request_obj is
+    not None, use it as the request, otherwise use the actual object
+    behind the global request proxy.
     """
     return korpplugins.KorpFunctionPlugin.call_chain(
-        *args, _get_request_obj(request_obj), app)
+        *args, _get_request_obj(request_obj))
 
 
 def main_handler(generator):

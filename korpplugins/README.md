@@ -100,41 +100,41 @@ of the mount point. The arguments and return values of a mount-point
 plugin are specific to a mount point. Currently the following mount
 points are in use:
 
-- `filter_args(self, args, request, app)`: Modifies the arguments
+- `filter_args(self, args, request)`: Modifies the arguments
   `dict` `args` to any endpoint (view function) and returns the
   modified value.
 
-- `filter_result(self, result, request, app)`: Modifies the result
+- `filter_result(self, result, request)`: Modifies the result
   `dict` `result` returned by any endpoint (view function) and returns
   the modified value.
 
-- `filter_cqp_input(self, cqp, request, app)`: Modifies the raw CQP
+- `filter_cqp_input(self, cqp, request)`: Modifies the raw CQP
   input string `cqp`, typically consisting of multiple CQP commands,
   already encoded as `bytes`, to be passed to the CQP executable, and
   returns the modified value.
 
-- `filter_cqp_output(self, (output, error), request, app)`: Modifies
+- `filter_cqp_output(self, (output, error), request)`: Modifies
   the raw output of the CQP executable, a pair consisting of the
   standard output and standard error encoded as `bytes`, and returns
   the modified values as a pair.
 
-- `filter_sql(self, sql, request, app)`: Modifies the SQL statement
+- `filter_sql(self, sql, request)`: Modifies the SQL statement
   `sql` to be passed to the MySQL/MariaDB database server and returns
   the modified value.
 
-- `enter_handler(self, args, starttime, request, app)`: Called near
+- `enter_handler(self, args, starttime, request)`: Called near
   the beginning of a view function for an endpoint. `args` is a `dict`
   of arguments to the endpoint and `starttime` is the current time as
   seconds since the epoch as a floating point number. Does not return
   a value.
 
-- `exit_handler(self, endtime, elapsed_time, request, app)`: Called
+- `exit_handler(self, endtime, elapsed_time, request)`: Called
   just before exiting a view function for an endpoint (before yielding
   a response). `endtime` is the current time as seconds since the
   epoch as a floating point number, and `elapsed_time` is the time
   spent in the view function. Does not return a value.
 
-- `error(self, error, exc, request, app)`: Called after an exception
+- `error(self, error, exc, request)`: Called after an exception
   has occurred. `error` is the `dict` to be returned in JSON as
   `ERROR`, with keys `type` and `value` (and `traceback` if
   `debug=true` had been specified), and `exc` contains exception
@@ -142,8 +142,8 @@ points are in use:
 
 For each mount point, the argument `request` is the actual Flask
 request object (not a proxy for the request) containing information on
-the request, and `app` is the Flask application object. For example,
-the endpoint name is available as `request.endpoint`.
+the request. For example, the endpoint name is available as
+`request.endpoint`.
 
 Please note that each plugin class is instantiated only once (it is a
 singleton), so the possible state stored in `self` is shared by all
@@ -170,7 +170,7 @@ An example of a mount-point plugin function:
 
     class Test1b(korpplugins.KorpFunctionPlugin):
 
-        def filter_result(self, result, request, app):
+        def filter_result(self, result, request):
             """Wrap the result dictionary in "wrap" and add "endpoint"."""
             return {"endpoint": request.endpoint,
                     "wrap": result}
