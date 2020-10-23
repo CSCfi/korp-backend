@@ -175,11 +175,12 @@ class KorpFunctionPlugin(metaclass=KorpFunctionPluginMetaclass):
         return arg1
 
 
-def load(plugin_list, router=None, main_handler=None, extra_decorators=[]):
+def load(plugin_list, router=None, main_handler=None, extra_decorators=None):
     """Load the plugins in the modules listed in plugin_list by
     importing the modules within this package, and use router,
     main_handler and extra_decorators as the decorators for Flask.
     """
+    extra_decorators = extra_decorators or []
     endpoint.init_decorators(
         router, main_handler,
         dict((decor.__name__, decor) for decor in extra_decorators))
