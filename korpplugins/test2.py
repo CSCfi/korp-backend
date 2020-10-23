@@ -14,7 +14,7 @@ import korpplugins
 
 class Test2(korpplugins.KorpFunctionPlugin):
 
-    def filter_result(self, d, *rest):
+    def filter_result(self, d, request):
         return {"wrap2": d}
 
 
@@ -22,26 +22,27 @@ class Test3(korpplugins.KorpFunctionPlugin):
 
     """Print the arguments at all plugin mount points"""
 
-    def enter_handler(self, args, starttime, *rest):
-        print("enter_handler", args, starttime, *rest)
+    def enter_handler(self, args, starttime, request):
+        print("enter_handler", args, starttime, request)
+        print("app_globals:", korpplugins.app_globals)
 
-    def exit_handler(self, endtime, elapsed, *rest):
-        print("exit_handler", endtime, elapsed, *rest)
+    def exit_handler(self, endtime, elapsed, request):
+        print("exit_handler", endtime, elapsed, request)
 
-    def error(self, error, exc, *rest):
+    def error(self, error, exc, request):
         print("error", error, traceback.format_exception(*exc))
 
-    def filter_args(self, args, *rest):
-        print("filter_args", args, *rest)
+    def filter_args(self, args, request):
+        print("filter_args", args, request)
 
-    def filter_result(self, result, *rest):
-        print("filter_result", result, *rest)
+    def filter_result(self, result, request):
+        print("filter_result", result, request)
 
-    def filter_cqp_input(self, cmd, *rest):
-        print("filter_cqp_input", cmd, *rest)
+    def filter_cqp_input(self, cmd, request):
+        print("filter_cqp_input", cmd, request)
 
-    def filter_cqp_output(self, output, *rest):
-        print("filter_cqp_output", output, *rest)
+    def filter_cqp_output(self, output, request):
+        print("filter_cqp_output", output, request)
 
-    def filter_sql(self, sql, *rest):
-        print("filter_sql", sql, *rest)
+    def filter_sql(self, sql, request):
+        print("filter_sql", sql, request)
