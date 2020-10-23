@@ -21,6 +21,7 @@ import importlib
 import sys
 
 from collections import defaultdict
+from types import SimpleNamespace
 
 try:
     from . import config as pluginconf
@@ -29,6 +30,13 @@ except ImportError:
         # When loading, print plugin module names but not function names
         LOAD_VERBOSITY = 1
         HANDLE_NOT_FOUND = "warn"
+
+
+# The attributes of app_globals allows accessing the values of global
+# application variables (and possibly functions) passed to load(), typically at
+# least "app" and "mysql". app_globals is initialized in load(), but defined
+# here for clarity.
+app_globals = None
 
 
 def _print_verbose(verbosity, *args):
@@ -175,15 +183,20 @@ class KorpFunctionPlugin(metaclass=KorpFunctionPluginMetaclass):
         return arg1
 
 
-def load(plugin_list, router=None, main_handler=None, extra_decorators=None):
+def load(plugin_list, router=None, main_handler=None, extra_decorators=None,
+         app_globals=None):
     """Load the plugins in the modules listed in plugin_list by
     importing the modules within this package, and use router,
     main_handler and extra_decorators as the decorators for Flask.
+    app_globals is a dictionary of global application variables to be
+    made available as attributes of the module global app_globals.
     """
     extra_decorators = extra_decorators or []
     endpoint.init_decorators(
         router, main_handler,
         dict((decor.__name__, decor) for decor in extra_decorators))
+    app_globals = app_globals or {}
+    globals()["app_globals"] = SimpleNamespace(**app_globals)
     for plugin in plugin_list:
         _print_verbose(1, "Loading Korp plugin \"" + plugin + "\"")
         # We could implement a more elaborate or configurable plugin

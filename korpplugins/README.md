@@ -174,3 +174,13 @@ An example of a mount-point plugin function:
             """Wrap the result dictionary in "wrap" and add "endpoint"."""
             return {"endpoint": request.endpoint,
                     "wrap": result}
+
+
+## Accessing main application module global variables in plugins
+
+The values of selected global variables in the main application module
+`korp.py` are available to plugin modules in the attributes of
+`korpplugins.app_globals`. The variables currently available are
+`app`, `mysql` and `KORP_VERSION`, which can be accessed as
+`korpplugins.app_globals.`_name_. In this way, for example, a
+plugin can access the Korp MySQL database.

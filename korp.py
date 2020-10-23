@@ -3461,7 +3461,16 @@ def test_decor(generator):
 
 # Load plugins
 korpplugins.load(config.PLUGINS, app.route, main_handler,
-                 [prevent_timeout, test_decor])
+                 [prevent_timeout, test_decor],
+                 dict((name, globals().get(name))
+                      for name in [
+                          # Allow plugins to access (indirectly) the values of
+                          # these global variables
+                          "app",
+                          "mysql",
+                          "KORP_VERSION",
+                      ]
+                  ))
 
 
 if __name__ == "__main__":
