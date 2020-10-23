@@ -137,7 +137,7 @@ class KorpLogger(korpplugins.KorpFunctionPlugin):
 
     # Actual plugin methods (functions)
 
-    def enter_handler(self, args, starttime, request, app):
+    def enter_handler(self, args, starttime, request):
         """Initialize logging at entering Korp and log basic information"""
         logger = self._init_logging(request, args)
         env = request.environ
@@ -166,9 +166,10 @@ class KorpLogger(korpplugins.KorpFunctionPlugin):
             self._log(logger.info, "auth", "Auth-domain", auth_domain)
             self._log(logger.info, "auth", "Auth-user", auth_user)
         self._log(logger.debug, "env", "Env", env)
-        # self._log(logger.debug, "env", "App", repr(app.__dict__))
+        # self._log(logger.debug, "env", "App",
+        #           repr(korpplugins.app_globals.app.__dict__))
 
-    def exit_handler(self, endtime, elapsed_time, request, app):
+    def exit_handler(self, endtime, elapsed_time, request):
         """Log information at exiting Korp"""
         logger = KorpLogger._get_logger(request)
         self._log(logger.info, "load", "CPU-load",
@@ -180,7 +181,7 @@ class KorpLogger(korpplugins.KorpFunctionPlugin):
         self._log(logger.info, "times", "Elapsed", elapsed_time)
         del self._loggers[KorpLogger._get_request_id(request)]
 
-    def filter_result(self, result, request, app):
+    def filter_result(self, result, request):
         """Debug log the result (request response)
 
         Note that the possible filter_result functions of plugins
@@ -190,17 +191,17 @@ class KorpLogger(korpplugins.KorpFunctionPlugin):
         logger = KorpLogger._get_logger(request)
         self._log(logger.debug, "debug", "Result", result)
 
-    def filter_cqp_input(self, cqp, request, app):
+    def filter_cqp_input(self, cqp, request):
         """Debug log CQP input cqp"""
         logger = KorpLogger._get_logger(request)
         self._log(logger.debug, "debug", "CQP", cqp)
 
-    def filter_sql(self, sql, request, app):
+    def filter_sql(self, sql, request):
         """Debug log SQL statements sql"""
         logger = KorpLogger._get_logger(request)
         self._log(logger.debug, "debug", "SQL", sql)
 
-    def log(self, levelname, category, item, value, request, app):
+    def log(self, levelname, category, item, value, request):
         """Log with the given level, category, item and value
 
         levelname should be one of "debug", "info", "warning", "error"
