@@ -1,0 +1,57 @@
+
+"""
+Module korpplugins._pluginloader
+
+Module containing the korpplugins plugin loading function
+
+This module is intended to be internal to the package korpplugins; the names
+intended to be visible outside the package are imported at the package level.
+"""
+
+
+import importlib
+import sys
+
+from types import SimpleNamespace
+
+from ._endpointplugin import endpoint
+from ._util import pluginconf, print_verbose
+
+
+# The attributes of app_globals allows accessing the values of global
+# application variables (and possibly functions) passed to load(), typically at
+# least "app" and "mysql". app_globals is initialized in load(), but defined
+# here for clarity.
+app_globals = None
+
+
+def load(plugin_list, router=None, main_handler=None, extra_decorators=None,
+         app_globals=None):
+    """Load the plugins in the modules listed in plugin_list by
+    importing the modules within this package, and use router,
+    main_handler and extra_decorators as the decorators for Flask.
+    app_globals is a dictionary of global application variables to be
+    made available as attributes of the module global app_globals.
+    """
+    extra_decorators = extra_decorators or []
+    endpoint.init_decorators(
+        router, main_handler,
+        dict((decor.__name__, decor) for decor in extra_decorators))
+    app_globals = app_globals or {}
+    globals()["app_globals"] = SimpleNamespace(**app_globals)
+    for plugin in plugin_list:
+        print_verbose(1, "Loading Korp plugin \"" + plugin + "\"")
+        # We could implement a more elaborate or configurable plugin
+        # discovery procedure if needed
+        try:
+            module = importlib.import_module(
+                __name__.rpartition('.')[0] + '.' + plugin)
+        except ModuleNotFoundError as e:
+            if pluginconf.HANDLE_NOT_FOUND == "ignore":
+                continue
+            msg_base = "Plugin \"" + plugin + "\" not found:"
+            if pluginconf.HANDLE_NOT_FOUND == "warn":
+                print("Warning:", msg_base, e, file=sys.stderr)
+            else:
+                print(msg_base, file=sys.stderr)
+                raise
