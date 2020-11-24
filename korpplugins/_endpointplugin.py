@@ -35,6 +35,7 @@ class Blueprint(flask.Blueprint):
         extra_decorators to endpoints, and default to methods=["GET", "POST"].
         """
         # global _plugin_funcs, _endpoint_decorators
+        extra_decorators = extra_decorators or []
         self._instances.add(self)
         if "methods" not in options:
             options["methods"] = ["GET", "POST"]
