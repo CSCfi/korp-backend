@@ -114,19 +114,19 @@ def _retrieve_lemgrams(cursor, wf, modcase, is_any_prefix, result, result_set):
 
 
 def _make_lemgram_query_part(pattern, corpora, limit):
-    return ("(select distinct lemgram from lemgram_index where lemgram like '"
-            + pattern + "'"
-            + (" and corpus in (" + ','.join(["'" + corp + "'"
+    return ("(SELECT DISTINCT lemgram FROM lemgram_index"
+            " WHERE lemgram LIKE '" + pattern + "'"
+            + (" AND CORPUS IN (" + ','.join(["'" + corp + "'"
                                              for corp in corpora]) + ")"
                if corpora else '')
             # This would be too slow:
-            # + " collate 'utf8_swedish_ci'"
+            # + " COLLATE 'utf8_swedish_ci'"
             # Order the result first by descending total frequency and
             # then by lemgram and then take the requested number of
             # rows at the beginning.
-            + " group by lemgram"
-            + " order by sum(freq) desc, lemgram"
-            + " limit " + str(limit)
+            + " GROUP BY lemgram"
+            + " ORDER BY SUM(freq) DESC, lemgram"
+            + " LIMIT " + str(limit)
             + ")")
 
 
