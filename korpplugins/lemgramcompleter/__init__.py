@@ -1,9 +1,9 @@
 
 """
-korpplugins.lemgramsuggest
+korpplugins.lemgramcompleter
 
-A Korp plugin implementing /lemgram_suggest endpoint, to get lemgram
-suggestions for autocompleting a prefix.
+A Korp plugin implementing /lemgram_complete endpoint, to find lemgram
+completions for a prefix.
 """
 
 
@@ -21,17 +21,17 @@ import korpplugins
 DBTABLE = "lemgram_index"
 
 
-plugin = korpplugins.Blueprint("lemgramsuggest_plugin", __name__)
+plugin = korpplugins.Blueprint("lemgramcompleter_plugin", __name__)
 
 
-@plugin.route("/lemgram_suggest", extra_decorators=["prevent_timeout"])
-def lemgram_suggest(args):
-    """Suggest lemgrams with the specified prefix.
+@plugin.route("/lemgram_complete", extra_decorators=["prevent_timeout"])
+def lemgram_complete(args):
+    """Find lemgrams beginning with the specified prefix.
 
-    Suggest lemgrams beginning with the specified prefix, based on the
-    database table lemgram_index. If corpus ids are specified, prefer
-    lemgrams from those corpora and fill in from the rest. The result is
-    sorted descending by the frequency of the lemgram.
+    Find lemgram completions beginning with the specified prefix, based
+    on the database table lemgram_index. If corpus ids are specified,
+    prefer lemgrams from those corpora and fill in from the rest. The
+    result is sorted descending by the frequency of the lemgram.
 
     Arguments:
     - wf: lemgram prefix
