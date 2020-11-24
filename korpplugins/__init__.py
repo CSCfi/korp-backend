@@ -2,17 +2,16 @@
 """
 Package korpplugins
 
-A class-based proposal for a plugin framework for the Korp backend (WSGI
-endpoints marked by a decorator)
+A class- and Blueprint-based proposal for a plugin framework for the Korp
+backend
 
 The classes are mostly for encapsulation: although the plugin functions are
-instance methods, the instances are singletons.
+instance methods, the instances are singletons. Registering plugin functions
+(for KorpFunctionPlugin subclasses) is handled in the metaclass, adapted from
+or inspired by http://martyalchin.com/2008/jan/10/simple-plugin-framework/
 
-Registering plugin functions (for KorpFunctionPlugin subclasses) is handled in
-the metaclass, adapted from or inspired by
-http://martyalchin.com/2008/jan/10/simple-plugin-framework/, whereas WSGI
-endpoint methods (in KorpEndpointPlugin subclasses) are decorated for Flask
-with the decorator "endpoint".
+WSGI endpoints are functions decorated with the route method of an instance of
+korpplugins.Blueprint.
 """
 
 
@@ -22,6 +21,6 @@ with the decorator "endpoint".
 
 
 # The following names are visible to the code importing korpplugins
-from ._endpointplugin import endpoint
+from ._endpointplugin import Blueprint
 from ._functionplugin import KorpFunctionPlugin
 from ._pluginloader import load, app_globals

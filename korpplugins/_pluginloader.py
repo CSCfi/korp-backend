@@ -14,7 +14,9 @@ import sys
 
 from types import SimpleNamespace
 
-from ._endpointplugin import endpoint
+from . import _commondefs
+
+from ._endpointplugin import Blueprint
 from ._util import pluginconf, print_verbose
 
 
@@ -25,18 +27,21 @@ from ._util import pluginconf, print_verbose
 app_globals = None
 
 
-def load(plugin_list, router=None, main_handler=None, extra_decorators=None,
+def load(app, plugin_list, main_handler=None, extra_decorators=None,
          app_globals=None):
-    """Load the plugins in the modules listed in plugin_list by
-    importing the modules within this package, and use router,
-    main_handler and extra_decorators as the decorators for Flask.
+    """Load the plugins in the modules listed in plugin_list.
+
+    Load the plugins in the modules listed in plugin_list by importing
+    the modules within this package. app is the Flask application, and
+    main_handler and extra_decorators as the decorators for endpoints.
     app_globals is a dictionary of global application variables to be
     made available as attributes of the module global app_globals.
     """
     extra_decorators = extra_decorators or []
-    endpoint.init_decorators(
-        router, main_handler,
-        dict((decor.__name__, decor) for decor in extra_decorators))
+    _commondefs._endpoint_decorators = dict(
+        (decor.__name__, decor) for decor in extra_decorators)
+    if main_handler is not None:
+        _commondefs._endpoint_decorators["main_handler"] = main_handler
     app_globals = app_globals or {}
     globals()["app_globals"] = SimpleNamespace(**app_globals)
     for plugin in plugin_list:
@@ -55,3 +60,4 @@ def load(plugin_list, router=None, main_handler=None, extra_decorators=None,
             else:
                 print(msg_base, file=sys.stderr)
                 raise
+    Blueprint.register_all(app)
