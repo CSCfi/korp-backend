@@ -20,9 +20,10 @@ from ._util import pluginconf, print_verbose
 
 # The attributes of app_globals allows accessing the values of global
 # application variables (and possibly functions) passed to load(), typically at
-# least "app" and "mysql". app_globals is initialized in load(), but defined
-# here for clarity.
-app_globals = None
+# least "app" and "mysql". Values to app_globals are added in load(), but it is
+# initialized here, so that its value is correct when it is imported at the
+# package level.
+app_globals = SimpleNamespace()
 
 
 def load(app, plugin_list, main_handler=None, extra_decorators=None,
@@ -38,7 +39,9 @@ def load(app, plugin_list, main_handler=None, extra_decorators=None,
     Blueprint.set_endpoint_decorators(
         [main_handler] + (extra_decorators or []))
     app_globals = app_globals or {}
-    globals()["app_globals"] = SimpleNamespace(**app_globals)
+    global_app_globals = globals()["app_globals"]
+    for name, val in app_globals.items():
+        setattr(global_app_globals, name, val)
     for plugin in plugin_list:
         print_verbose(1, "Loading Korp plugin \"" + plugin + "\"")
         # We could implement a more elaborate or configurable plugin
