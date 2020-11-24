@@ -14,8 +14,6 @@ import sys
 
 from types import SimpleNamespace
 
-from . import _commondefs
-
 from ._endpointplugin import Blueprint
 from ._util import pluginconf, print_verbose
 
@@ -37,11 +35,8 @@ def load(app, plugin_list, main_handler=None, extra_decorators=None,
     app_globals is a dictionary of global application variables to be
     made available as attributes of the module global app_globals.
     """
-    extra_decorators = extra_decorators or []
-    _commondefs._endpoint_decorators = dict(
-        (decor.__name__, decor) for decor in extra_decorators)
-    if main_handler is not None:
-        _commondefs._endpoint_decorators["main_handler"] = main_handler
+    Blueprint.set_endpoint_decorators(
+        [main_handler] + (extra_decorators or []))
     app_globals = app_globals or {}
     globals()["app_globals"] = SimpleNamespace(**app_globals)
     for plugin in plugin_list:

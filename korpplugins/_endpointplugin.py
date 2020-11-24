@@ -16,10 +16,6 @@ import functools
 
 import flask
 
-# Import _commondefs instead of import names from it, so that assigning to
-# _commondefs.var modifies the value visible to other modules
-from . import _commondefs
-
 from ._util import print_verbose
 
 
@@ -29,12 +25,13 @@ class Blueprint(flask.Blueprint):
 
     # Class instances
     _instances = set()
+    # Available endpoint decorators (name: function)
+    _endpoint_decorators = {}
 
     def route(self, rule, *, extra_decorators=None, **options):
         """Add main_handler and possible optional decorators specified in
         extra_decorators to endpoints, and default to methods=["GET", "POST"].
         """
-        # global _plugin_funcs, _endpoint_decorators
         extra_decorators = extra_decorators or []
         self._instances.add(self)
         if "methods" not in options:
@@ -44,9 +41,10 @@ class Blueprint(flask.Blueprint):
                 return func(*args, **kwargs)
             # Wrap in possible extra decorators and main_handler
             for decorator_name in extra_decorators + ["main_handler"]:
-                if decorator_name in _commondefs._endpoint_decorators:
+                if decorator_name in self._endpoint_decorators:
                     wrapper = functools.update_wrapper(
-                        _commondefs._endpoint_decorators[decorator_name](wrapper), func)
+                        self._endpoint_decorators[decorator_name](wrapper),
+                        func)
             wrapped_func = functools.update_wrapper(
                 super(Blueprint, self).route(rule, **options)(wrapper), func)
             print_verbose(
@@ -59,3 +57,11 @@ class Blueprint(flask.Blueprint):
         """Register all Blueprint instances with the Flask application app."""
         for bp in cls._instances:
             app.register_blueprint(bp)
+
+    @classmethod
+    def set_endpoint_decorators(cls, decor_list):
+        """Set the available endpoint decorators to decor_list (list
+        of decorator functions)."""
+        cls._endpoint_decorators = dict(
+            (decor.__name__, decor)
+            for decor in decor_list if decor is not None)
