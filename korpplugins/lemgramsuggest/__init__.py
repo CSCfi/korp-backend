@@ -38,15 +38,23 @@ def lemgram_suggest(args):
     - corpus (optional): list of corpus ids from which to get the
       lemgrams in the first place
     - limit (default: 10): the number of lemgrams to return
+    - format (optional): if "old", use an old, Karp-like format, instead
+      of the simpler default
     """
     wf = args.get("wf")
     corpora = args.get("corpus")
     limit = int(args.get("limit", 10))
+    fmt = args.get("format")
     if corpora:
         corpora = corpora.split(',')
     result = _get_lemgrams(wf, corpora, limit)
+    if fmt == "old":
+        result = _encode_lemgram_result(result)
+        hits_name = "div"
+    else:
+        hits_name = "lemgrams"
     yield {
-        "div": result,
+        hits_name: result,
         "count": len(result),
     }
 
@@ -56,7 +64,7 @@ def _get_lemgrams(wf, corpora, limit):
     with app_globals.app.app_context():
         cursor = app_globals.mysql.connection.cursor()
         result = _query_lemgrams(cursor, wf, corpora, limit)[:limit]
-    return _encode_lemgram_result(result)
+    return result
 
 
 def _query_lemgrams(cursor, wf, param_corpora, limit):
