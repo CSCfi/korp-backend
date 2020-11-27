@@ -68,3 +68,6 @@ MEMCACHED_POOL_SIZE = 25
 
 # Max number of rows from count command to cache
 CACHE_MAX_STATS = 5000
+
+# List of names of plugin modules to load
+PLUGINS = []

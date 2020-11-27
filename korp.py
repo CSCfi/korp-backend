@@ -48,6 +48,7 @@ import traceback
 import functools
 import math
 import random
+import korpplugins
 import config
 try:
     import pylibmc
@@ -93,6 +94,40 @@ app.config["MYSQL_CURSORCLASS"] = "DictCursor"
 mysql = MySQL(app)
 
 
+def _get_request_obj(request_obj):
+    """Return the actual non-proxy Request object for request_obj.
+
+    If request_obj is None, get the object for the global request proxy.
+    """
+    request_obj = request_obj or request
+    try:
+        return request_obj._get_current_object()
+    except AttributeError:
+        return request_obj
+
+
+def plugins_call(*args, request_obj=None):
+    """Shorthand for korpplugins.KorpFunctionPlugin.call
+
+    Appends request to the arguments passed forward. If request_obj is
+    not None, use it as the request, otherwise use the actual object
+    behind the global request proxy.
+    """
+    korpplugins.KorpFunctionPlugin.call(
+        *args, _get_request_obj(request_obj))
+
+
+def plugins_call_chain(*args, request_obj=None):
+    """Shorthand for korpplugins.KorpFunctionPlugin.call_chain
+
+    Appends request to the arguments passed forward. If request_obj is
+    not None, use it as the request, otherwise use the actual object
+    behind the global request proxy.
+    """
+    return korpplugins.KorpFunctionPlugin.call_chain(
+        *args, _get_request_obj(request_obj))
+
+
 def main_handler(generator):
     """Decorator wrapping all WSGI endpoints, handling errors and formatting.
 
@@ -134,6 +169,7 @@ def main_handler(generator):
                                    }}
                 if "debug" in args:
                     error["ERROR"]["traceback"] = "".join(traceback.format_exception(*exc)).splitlines()
+                plugins_call("error", error, exc)
                 return error
 
             def incremental_json(ff):
@@ -148,6 +184,8 @@ def main_handler(generator):
                             # Yield whitespace to prevent timeout
                             yield " \n"
                         else:
+                            response = plugins_call_chain(
+                                "filter_result", response)
                             yield json.dumps(response)[1:-1] + ",\n"
                 except GeneratorExit:
                     raise
@@ -155,7 +193,10 @@ def main_handler(generator):
                     error = error_handler()
                     yield json.dumps(error)[1:-1] + ",\n"
 
-                yield json.dumps({"time": time.time() - starttime})[1:] + "\n"
+                endtime = time.time()
+                elapsed_time = endtime - starttime
+                plugins_call("exit_handler", endtime, elapsed_time)
+                yield json.dumps({"time": elapsed_time})[1:] + "\n"
                 if callback:
                     yield ")"
 
@@ -175,15 +216,22 @@ def main_handler(generator):
                 except:
                     result = error_handler()
 
-                result["time"] = time.time() - starttime
+                endtime = time.time()
+                elapsed_time = endtime - starttime
+                result["time"] = elapsed_time
+
+                result = plugins_call_chain("filter_result", result)
 
                 if callback:
                     result = callback + "(" + json.dumps(result, indent=indent) + ")"
                 else:
                     result = json.dumps(result, indent=indent)
+                plugins_call("exit_handler", endtime, elapsed_time)
                 yield result
 
             starttime = time.time()
+            plugins_call("enter_handler", args, starttime)
+            args = plugins_call_chain("filter_args", args)
             incremental = parse_bool(args, "incremental", False)
             callback = args.get("callback")
             indent = int(args.get("indent", 0))
@@ -1612,10 +1660,15 @@ def count(args):
             result["corpora"][corpus][i + 1]["cqp"] = subcqp[i]
 
     with ThreadPoolExecutor(max_workers=config.PARALLEL_THREADS) as executor:
+        # The query worker is outside the request context, so we pass the
+        # current request object to it, so that the plugin mount points in
+        # run_cqp can use it.
         future_query = dict((executor.submit(count_function, corpus=corpus, cqp=cqp, group_by=group_by,
                                              within=within[corpus], ignore_case=ignore_case,
                                              expand_prequeries=expand_prequeries,
-                                             use_cache=args["cache"]), corpus)
+                                             use_cache=args["cache"],
+                                             request=request._get_current_object()),
+                             corpus)
                             for corpus in corpora if corpus not in zero_hits)
 
         for future in futures.as_completed(future_query):
@@ -1931,10 +1984,15 @@ def count_time(args):
         yield {"progress_corpora": corpora}
 
     with ThreadPoolExecutor(max_workers=config.PARALLEL_THREADS) as executor:
+        # The query worker is outside the request context, so we pass the
+        # current request object to it, so that the plugin mount points in
+        # run_cqp can use it.
         future_query = dict((executor.submit(count_query_worker, corpus=corpus, cqp=cqp, group_by=group_by,
                                              within=within[corpus],
                                              expand_prequeries=expand_prequeries,
-                                             use_cache=args["cache"]), corpus)
+                                             use_cache=args["cache"],
+                                             request=request._get_current_object()),
+                             corpus)
                             for corpus in corpora)
 
         for future in futures.as_completed(future_query):
@@ -2052,7 +2110,8 @@ def count_time(args):
 
 
 def count_query_worker(corpus, cqp, group_by, within, ignore_case=[], cut=None, expand_prequeries=True,
-                       use_cache=False):
+                       use_cache=False, request=request):
+    # request is used only for passing to run_cqp
     subcqp = None
     if isinstance(cqp[-1], list):
         subcqp = cqp[-1]
@@ -2121,7 +2180,7 @@ def count_query_worker(corpus, cqp, group_by, within, ignore_case=[], cut=None, 
 
     cmd += ["exit;"]
 
-    lines = run_cqp(cmd)
+    lines = run_cqp(cmd, request=request)
 
     # Skip CQP version
     next(lines)
@@ -2154,9 +2213,10 @@ def count_query_worker(corpus, cqp, group_by, within, ignore_case=[], cut=None, 
 
 
 def count_query_worker_simple(corpus, cqp, group_by, within=None, ignore_case=[], expand_prequeries=True,
-                              use_cache=False):
+                              use_cache=False, request=request):
     """Worker for simple statistics queries which can be run using cwb-scan-corpus.
     Currently only used for searches on [] (any word)."""
+    # request is only for signature compatibity with count_query_worker
     lines = list(run_cwb_scan(corpus, [g[0] for g in group_by]))
     nr_hits = 0
 
@@ -2410,7 +2470,7 @@ def lemgram_count(args):
     result = {}
     with app.app_context():
         cursor = mysql.connection.cursor()
-        cursor.execute(sql)
+        sql_execute(cursor, sql)
 
     for row in cursor:
         # We need this check here, since a search for "hår" also returns "här" and "har".
@@ -2425,6 +2485,11 @@ def lemgram_count(args):
 def sql_escape(s):
     with app.app_context():
         return mysql.connection.escape_string(s).decode("utf-8") if isinstance(s, str) else s
+
+
+def sql_execute(cursor, sql):
+    sql = plugins_call_chain("filter_sql", sql)
+    cursor.execute(sql)
 
 
 ################################################################################
@@ -2530,7 +2595,7 @@ def timespan(args, no_combined_cache=False):
                       str(shorten[granularity]) + ") AS dt, SUM(tokens) AS sum FROM " + timedata_corpus + \
                       " WHERE corpus IN " + corpora_sql + fromto + " GROUP BY corpus, df, dt ORDER BY NULL;"
             cursor = mysql.connection.cursor()
-            cursor.execute(sql)
+            sql_execute(cursor, sql)
         else:
             cursor = tuple()
 
@@ -2753,10 +2818,10 @@ def relations(args):
 
     with app.app_context():
         cursor = mysql.connection.cursor()
-        cursor.execute("SET @@session.long_query_time = 1000;")
+        sql_execute(cursor, "SET @@session.long_query_time = 1000;")
 
         # Get available tables
-        cursor.execute("SHOW TABLES LIKE '" + config.DBWPTABLE + "_%';")
+        sql_execute(cursor, "SHOW TABLES LIKE '" + config.DBWPTABLE + "_%';")
         tables = set(list(x.values())[0] for x in cursor)
         # Filter out corpora which don't exist in database
         corpora = [x for x in corpora if config.DBWPTABLE + "_" + x.upper() in tables]
@@ -2830,14 +2895,14 @@ def relations(args):
                 yield {"progress_corpora": list(corpora_rest)}
                 progress_count = 0
                 for sql in selects:
-                    cursor.execute(sql[1])
+                    sql_execute(cursor, sql[1])
                     cursor_result.extend(list(cursor))
                     if sql[0]:
                         yield {"progress_%d" % progress_count: {"corpus": sql[0]}}
                         progress_count += 1
             else:
                 sql = " UNION ALL ".join(x[1] for x in selects)
-                cursor.execute(sql)
+                sql_execute(cursor, sql)
                 cursor_result = cursor
 
     rels = {}
@@ -2960,12 +3025,12 @@ def relations_sentences(args):
 
     with app.app_context():
         cursor = mysql.connection.cursor()
-        cursor.execute("SET @@session.long_query_time = 1000;")
+        sql_execute(cursor, "SET @@session.long_query_time = 1000;")
         selects = []
         counts = []
 
         # Get available tables
-        cursor.execute("SHOW TABLES LIKE '" + config.DBWPTABLE + "_%';")
+        sql_execute(cursor, "SHOW TABLES LIKE '" + config.DBWPTABLE + "_%';")
         tables = set(list(x.values())[0] for x in cursor)
         # Filter out corpora which doesn't exist in database
         source = sorted([x for x in iter(source.items()) if config.DBWPTABLE + "_" + x[0].upper() in tables])
@@ -2989,14 +3054,14 @@ def relations_sentences(args):
                           corpus_table_sentences + "` as S WHERE S.id IN " + ids_list + ")")
 
         sql_count = " UNION ALL ".join(counts)
-        cursor.execute(sql_count)
+        sql_execute(cursor, sql_count)
 
         corpus_hits = {}
         for row in cursor:
             corpus_hits[row["corpus"]] = int(row["freq"])
 
         sql = " UNION ALL ".join(selects) + (" LIMIT %d, %d" % (start, end - start + 1))
-        cursor.execute(sql)
+        sql_execute(cursor, sql)
 
         querytime = time.time() - querystarttime
         corpora_dict = {}
@@ -3266,12 +3331,16 @@ class Namespace:
 
 
 def run_cqp(command, encoding=None, executable=config.CQP_EXECUTABLE,
-            registry=config.CWB_REGISTRY, attr_ignore=False, errors="strict"):
+            registry=config.CWB_REGISTRY, attr_ignore=False, errors="strict",
+            request=request):
     """Call the CQP binary with the given command, and the request data.
     Yield one result line at the time, disregarding empty lines.
     If there is an error, raise a CQPError exception, unless the
     parameter errors is "ignore" or "report" (report errors at the
     beginning of the output as lines beginning with "CQP Error:").
+
+    request is used only for passing to plugins, as run_cqp is also
+    called outside Flask request context.
     """
     env = os.environ.copy()
     env["LC_COLLATE"] = config.LC_COLLATE
@@ -3280,11 +3349,15 @@ def run_cqp(command, encoding=None, executable=config.CQP_EXECUTABLE,
         command = "\n".join(command)
     command = "set PrettyPrint off;\n" + command
     command = command.encode(encoding)
+    command = plugins_call_chain(
+        "filter_cqp_input", command, request_obj=request)
     process = subprocess.Popen([executable, "-c", "-r", registry],
                                stdin=subprocess.PIPE,
                                stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE, env=env)
     reply, error = process.communicate(command)
+    reply, error = plugins_call_chain(
+        "filter_cqp_output", (reply, error), request_obj=request)
     if error and errors != "ignore":
         error = error.decode(encoding)
         # Remove newlines from the error string:
@@ -3464,6 +3537,32 @@ if config.MEMCACHED_SERVERS and not cache_disabled:
 
 # Set up caching
 setup_cache()
+
+
+def test_decor(generator):
+    """A decorator for testing specifying extra decorators in WSGI
+    endpoint plugins."""
+    @functools.wraps(generator)
+    def decorated(args=None, *pargs, **kwargs):
+        for x in generator(args, *pargs, **kwargs):
+            yield {"test_decor": "Endpoint decorated with test_decor",
+                   "payload": x}
+    return decorated
+
+
+# Load plugins
+korpplugins.load(app, config.PLUGINS, main_handler,
+                 [prevent_timeout, test_decor],
+                 dict((name, globals().get(name))
+                      for name in [
+                          # Allow plugins to access (indirectly) the values of
+                          # these global variables
+                          "app",
+                          "mysql",
+                          "KORP_VERSION",
+                      ]
+                  ))
+
 
 if __name__ == "__main__":
     if len(sys.argv) == 2 and sys.argv[1] == "dev":
