@@ -1,5 +1,5 @@
 
-# `korpplugins`: Korp backend plugin framework (API) (instance method proposal, route as a decorator)
+# `korpplugins`: Korp backend plugin framework (API) (proposal with function plugins as instance methods and Blueprint-based endpoints)
 
 
 ## Overview
@@ -46,31 +46,26 @@ Individual plugin packages can use separate configuration modules
 
 ## Plugin implementing a new WSGI endpoint
 
-A plugin implementing a new WSGI endpoint is a generator function
-defined as an instance method in a subclass of
-`korpplugins.KorpEndpointPlugin`. In addition to `self`, the generator
-function takes a `dict` argument containing the parameters of the call
-(and a variable number of positional and keyword arguments that are
-not generally used), and yields the result. The route of the endpoint
-and the names of possible additional decorators (currently
-`prevent_timeout`) are specified via the decorator
-`korpplugins.endpoint`. For example, the following defines an endpoint
-for the route `/test` with the decorator `prevent_timeout` (the name
-of the method itself is not significant):
+To implement a new WSGI endpoint, you first create an instance of
+`korpplugins.Blueprint` (a subclass of `flask.Blueprint`) as follows:
 
-    class Test1a(korpplugins.KorpEndpointPlugin):
+    test_plugin = korpplugins.Blueprint("test_plugin", __name__)
 
-        @korpplugins.endpoint("/test", "prevent_timeout")
-        def test(self, args, *pargs, **kwargs):
-            """Yield arguments wrapped in "args"."""
-            yield {"args": args}
+The actual view function is a generator function decorated with the
+`route` method of the created instance. The decorator takes as its
+arguments the route of the endpoint, and optionally the names of
+possible additional decorators as the keyword argument
+`extra_decorators` (currently `prevent_timeout`) and other options of
+`route`. The generator function takes a single `dict` argument
+containing the parameters of the call and yields the result. For
+example:
 
-A single class can define only one endpoint but a single plugin module
-can define multiple new endpoints in separate classes.
+    @test_plugin.route("/test", extra_decorators=["prevent_timeout"])
+    def test(args):
+        """Yield arguments wrapped in "args"."""
+        yield {"args": args}
 
-Please note that the class is instantiated only once (it is a
-singleton), so the possible state stored in `self` is shared by all
-invocations (Korp requests).
+A single plugin module can define multiple new endpoints.
 
 Limitations:
 
@@ -87,9 +82,6 @@ Limitations:
   or the result. However, in many cases, a similar effect can be
   achieved by defining the appropriate mount-point plugin functions
   `filter_args` and `filter_result`; see below.
-
-- You cannot currently pass options to `route`, but that could be
-  implemented if the need arises.
 
 
 ## Plugin function called at a mount point
