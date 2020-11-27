@@ -2,8 +2,8 @@
 """
 korpplugins.test1
 
-Korp test plugin for an object-based plugin proposal: endpoint /test and
-a result wrapper in a package with a separate configuration module.
+Korp test plugin for an object- and Blueprint-based plugin proposal: endpoint
+/test and a result wrapper in a package with a separate configuration module.
 """
 
 
@@ -17,12 +17,13 @@ except ImportError:
         WRAP_NAME = "wrap_default"
 
 
-class Test1a:
+test_plugin = korpplugins.Blueprint("test_plugin", __name__)
 
-    @korpplugins.endpoint("/test", "test_decor")
-    def test(self, args, *pargs, **kwargs):
-        """Yield arguments wrapped in ARGS_NAME."""
-        yield {pluginconf.ARGS_NAME: args}
+
+@test_plugin.route("/test", extra_decorators=["test_decor"])
+def test(args):
+    """Yield arguments wrapped in ARGS_NAME."""
+    yield {pluginconf.ARGS_NAME: args}
 
 
 class Test1b(korpplugins.KorpFunctionPlugin):
