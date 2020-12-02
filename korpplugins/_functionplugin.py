@@ -47,10 +47,10 @@ class KorpFunctionPluginMetaclass(Singleton):
             # This executes when initializing the base class for the
             # first time
             cls._plugin_funcs = defaultdict(list)
-            # Functions defined in the base class are not plugin functions but
-            # caller functions: record them here so that they can be excluded
-            # when registering plugin functions in subclasses
-            cls._caller_funcs = [name for name in attrs]
+            # Methods defined in the base class are not plugin functions:
+            # record them here so that they can be excluded when registering
+            # plugin functions in subclasses
+            cls._base_methods = [name for name in attrs]
         else:
             # This executes in subclasses
             # Create class instance
@@ -58,7 +58,7 @@ class KorpFunctionPluginMetaclass(Singleton):
             for name in dir(inst):
                 attr = getattr(inst, name)
                 if (name[0].islower() and callable(attr)
-                        and name not in cls._caller_funcs):
+                        and name not in cls._base_methods):
                     cls._plugin_funcs[name].append(attr)
                     print_verbose(
                         2, ("  mount point \"" + name
