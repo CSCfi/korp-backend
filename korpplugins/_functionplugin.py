@@ -64,7 +64,7 @@ class KorpFunctionPluginMetaclass(Singleton):
                 attr = getattr(inst, name)
                 if (name[0].islower() and callable(attr)
                         and name not in cls._base_methods):
-                    cls._plugin_funcs[name].append(attr)
+                    cls._plugin_funcs[name].append((attr, cls.applies_to))
                     print_verbose(
                         2, ("  mount point \"" + name
                             + "\": function " + attr.__qualname__))
@@ -78,7 +78,15 @@ class KorpFunctionPlugin(metaclass=KorpFunctionPluginMetaclass):
     plugin mount point of the method name.
     """
 
-    pass
+    @classmethod
+    def applies_to(cls, request):
+        """Return True if the plugin should be applied to request.
+
+        This method always returns True, so it should be overridden in
+        plugin function classes which restrict their applicability
+        based on Flask request information, typically the endpoint.
+        """
+        return True
 
 
 class KorpFunctionPluginCaller:
@@ -131,24 +139,30 @@ class KorpFunctionPluginCaller:
     def call(self, mount_point, *args, **kwargs):
         """Call the plugins in mount_point, discarding return values
 
-        Call the plugins in mount_point with args and kwargs in sequence,
-        discarding return values.
+        Call the plugins in mount_point with args and kwargs in
+        sequence, discarding return values. Plugins whose applies_to
+        method returns false for the current request are skipped.
         """
-        for func in KorpFunctionPlugin._plugin_funcs.get(mount_point, []):
-            func(*args, self._request, **kwargs)
+        for func, applies_to in (KorpFunctionPlugin
+                                 ._plugin_funcs.get(mount_point, [])):
+            if applies_to(self._request):
+                func(*args, self._request, **kwargs)
 
     def call_collect(self, mount_point, *args, **kwargs):
         """Call the plugins in mount_point, collecting return values to a list
 
         Call the plugins in mount_point with args and kwargs in sequence,
         collect their return values to a list and return it. Return values
-        None are ignored.
+        None are ignored. Plugins whose applies_to method returns
+        false for the current request are skipped.
         """
         result = []
-        for func in KorpFunctionPlugin._plugin_funcs.get(mount_point, []):
-            retval = func(*args, self._request, **kwargs)
-            if retval is not None:
-                result.append(retval)
+        for func, applies_to in (KorpFunctionPlugin
+                                 ._plugin_funcs.get(mount_point, [])):
+            if applies_to(self._request):
+                retval = func(*args, self._request, **kwargs)
+                if retval is not None:
+                    result.append(retval)
         return result
 
     def call_chain(self, mount_point, arg1, *args, **kwargs):
@@ -158,12 +172,15 @@ class KorpFunctionPluginCaller:
         mount_point, with the return value of the preceding plugin
         function as the arg1 value of the following one, unless it is
         None, in which case arg1 is kept as is. *args and **kwargs are
-        passed to each function as they are.
+        passed to each function as they are. Plugins whose applies_to
+        method returns false for the current request are skipped.
         """
-        for func in KorpFunctionPlugin._plugin_funcs.get(mount_point, []):
-            retval = func(arg1, *args, self._request, **kwargs)
-            if retval is not None:
-                arg1 = retval
+        for func, applies_to in (KorpFunctionPlugin
+                                 ._plugin_funcs.get(mount_point, [])):
+            if applies_to(self._request):
+                retval = func(arg1, *args, self._request, **kwargs)
+                if retval is not None:
+                    arg1 = retval
         return arg1
 
     @classmethod

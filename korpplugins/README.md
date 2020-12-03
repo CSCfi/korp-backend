@@ -174,6 +174,12 @@ returned value is `None`, either explicitly or if the function has no
 is passed as is to the next plugin. Thus, a plugin function that does
 not modify the value need not return it.
 
+If the plugin functions of a class should be applied only to certain
+kinds of requests, for example, to a certain endpoint, it can override
+the class method `applies_to(cls, request)` to return `True` only for
+requests to which the plugin is applicable. (The parameter `request`
+is the actual Flask request object, not a proxy.)
+
 An example of a mount-point plugin function:
 
     class Test1b(korpplugins.KorpFunctionPlugin):
