@@ -16,6 +16,8 @@ intended to be visible outside the package are imported at the package level.
 
 from collections import defaultdict
 
+from flask import request as flask_request
+
 from ._util import print_verbose
 
 
@@ -51,9 +53,12 @@ class KorpFunctionPluginMetaclass(Singleton):
             # record them here so that they can be excluded when registering
             # plugin functions in subclasses
             cls._base_methods = [name for name in attrs]
+            # List of subclasses
+            cls._subclasses = []
         else:
             # This executes in subclasses
             # Create class instance
+            cls._subclasses.append(cls)
             inst = cls()
             for name in dir(inst):
                 attr = getattr(inst, name)
@@ -73,18 +78,66 @@ class KorpFunctionPlugin(metaclass=KorpFunctionPluginMetaclass):
     plugin mount point of the method name.
     """
 
+    pass
+
+
+class KorpFunctionPluginCaller:
+
+    """Class for calling plugin functions at named mount points.
+
+    This class should be instantiated once for each Flask request. The
+    call methods take care of passing the actual request object to the
+    plugin functions, so that it need not be specified at every call.
+    """
+
+    # Instances of this class: dict[request object id,
+    # KorpFunctionPluginCaller]
+    _instances = {}
+
+    def __init__(self, request=None):
+        """Initialize a KorpFunctionPluginCaller with the given request.
+
+        If request is None, use the object for the global request proxy.
+        """
+        self._request = self._get_request_obj(request)
+        self._instances[id(self._request)] = self
+
     @staticmethod
-    def call(mount_point, *args, **kwargs):
+    def _get_request_obj(request=None):
+        """Return the actual non-proxy Request object for request.
+
+        If request is None, get the object for the global request proxy.
+        """
+        request = request or flask_request
+        try:
+            return request._get_current_object()
+        except AttributeError:
+            return request
+
+    @classmethod
+    def get_instance(cls, request=None):
+        """Get the class instance for request.
+
+        If request is None, get the instance for the global request proxy.
+        """
+        request_obj = cls._get_request_obj(request)
+        return cls._instances[id(request_obj)]
+
+    def cleanup(self):
+        """Clean up when this KorpFunctionPluginCaller is no longer used."""
+        # Remove self from _instances
+        del self._instances[id(self._request)]
+
+    def call(self, mount_point, *args, **kwargs):
         """Call the plugins in mount_point, discarding return values
 
         Call the plugins in mount_point with args and kwargs in sequence,
         discarding return values.
         """
         for func in KorpFunctionPlugin._plugin_funcs.get(mount_point, []):
-            func(*args, **kwargs)
+            func(*args, self._request, **kwargs)
 
-    @staticmethod
-    def call_collect(mount_point, *args, **kwargs):
+    def call_collect(self, mount_point, *args, **kwargs):
         """Call the plugins in mount_point, collecting return values to a list
 
         Call the plugins in mount_point with args and kwargs in sequence,
@@ -93,13 +146,12 @@ class KorpFunctionPlugin(metaclass=KorpFunctionPluginMetaclass):
         """
         result = []
         for func in KorpFunctionPlugin._plugin_funcs.get(mount_point, []):
-            retval = func(*args, **kwargs)
+            retval = func(*args, self._request, **kwargs)
             if retval is not None:
                 result.append(retval)
         return result
 
-    @staticmethod
-    def call_chain(mount_point, arg1, *args, **kwargs):
+    def call_chain(self, mount_point, arg1, *args, **kwargs):
         """Call the plugins in mount_point, passing return value to the next
 
         Return the value of arg1 as passed through the plugins in
@@ -109,7 +161,35 @@ class KorpFunctionPlugin(metaclass=KorpFunctionPluginMetaclass):
         passed to each function as they are.
         """
         for func in KorpFunctionPlugin._plugin_funcs.get(mount_point, []):
-            retval = func(arg1, *args, **kwargs)
+            retval = func(arg1, *args, self._request, **kwargs)
             if retval is not None:
                 arg1 = retval
         return arg1
+
+    @classmethod
+    def call_for_request(cls, mount_point, *args, request=None, **kwargs):
+        """Call the plugins in mount_point for request.
+
+        If request is None, use the global request proxy.
+        """
+        cls.get_instance(request).call(mount_point, *args, **kwargs)
+
+    @classmethod
+    def call_collect_for_request(cls, mount_point, *args, request=None,
+                                 **kwargs):
+        """Call the plugins in mount_point for request, collecting to a list.
+
+        If request is None, use the global request proxy.
+        """
+        return cls.get_instance(request).call_collect(
+            mount_point, *args, **kwargs)
+
+    @classmethod
+    def call_chain_for_request(cls, mount_point, arg1, *args, request=None,
+                               **kwargs):
+        """Call the plugins in mount_point for request, passing return value
+
+        If request is None, use the global request proxy.
+        """
+        return cls.get_instance(request).call_chain(
+            mount_point, arg1, *args, **kwargs)
