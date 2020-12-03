@@ -67,6 +67,22 @@ example:
 
 A single plugin module can define multiple new endpoints.
 
+Additional endpoint decorator functions (whose names can be listed in
+`extra_decorators`) can be defined by decorating them with
+`korpplugins.Blueprint.endpoint_decorator`; for example:
+
+    # test_plugin is an instance of korpplugins.Blueprint, so this is
+    # equivalent to @korpplugins.Blueprint.endpoint_decorator
+    @test_plugin.endpoint_decorator
+    def test_decor(generator):
+        """Add to the result an extra layer with text_decor and payload."""
+        @functools.wraps(generator)
+        def decorated(args=None, *pargs, **kwargs):
+            for x in generator(args, *pargs, **kwargs):
+                yield {"test_decor": "Endpoint decorated with test_decor",
+                       "payload": x}
+        return decorated
+
 Limitations:
 
 - An endpoint (the view function) defined in a plugin cannot currently

@@ -3430,8 +3430,7 @@ def test_decor(generator):
 
 
 # Load plugins
-korpplugins.load(app, config.PLUGINS, main_handler,
-                 [prevent_timeout, test_decor],
+korpplugins.load(app, config.PLUGINS, [main_handler, prevent_timeout],
                  dict((name, globals().get(name))
                       for name in [
                           # Allow plugins to access (indirectly) the values of

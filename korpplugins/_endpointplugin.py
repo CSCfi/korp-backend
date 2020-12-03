@@ -59,9 +59,24 @@ class Blueprint(flask.Blueprint):
             app.register_blueprint(bp)
 
     @classmethod
-    def set_endpoint_decorators(cls, decor_list):
-        """Set the available endpoint decorators to decor_list (list
-        of decorator functions)."""
-        cls._endpoint_decorators = dict(
+    def add_endpoint_decorators(cls, decor_list):
+        """Add decor_list to the available endpoint decorators."""
+        cls._endpoint_decorators.update(dict(
             (decor.__name__, decor)
-            for decor in decor_list if decor is not None)
+            for decor in decor_list if decor is not None))
+
+    @classmethod
+    def set_endpoint_decorators(cls, decor_list):
+        """Set the available endpoint decorators to decor_list."""
+        cls._endpoint_decorators = {}
+        cls.add_endpoint_decorators(decor_list)
+
+    @classmethod
+    def endpoint_decorator(cls, func):
+        """Decorator to make func available as an endpoint decorator."""
+        # Effectively return func as is but add it to endpoint decorators
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+        cls.add_endpoint_decorators([func])
+        return wrapper
