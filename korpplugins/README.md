@@ -246,6 +246,55 @@ This works in part because the `request` argument of the plugin
 functions is the actual Flask request object, not the global proxy.
 
 
+### Defining mount points in plugins
+
+In addition to the mount points in `korp.py` listed above, you can
+define mount points in plugins simply by calling them. For example, a
+logging plugin could implement a mount point function `log` that could
+be called from other plugins, both function and endpoint plugins.
+
+Given the Flask request object (or the global request proxy)
+`request`, plugins at mount point `mount_point` can be called as
+follows, with `*args` and `**kwargs` as the positional and keyword
+arguments and discarding the return value:
+
+    korpplugins.KorpFunctionPluginCaller.call_for_request(
+        "mount_point", *args, request, **kwargs)
+
+or, equivalently, getting a caller for a request and calling its
+instance method (typically when the same function or method contains
+several mount point plugin calls):
+
+    plugin_caller = korpplugins.KorpFunctionPluginCaller.get_instance(request)
+    plugin_caller.call("mount_point", *args, **kwargs)
+
+If `request` is omitted or `None`, the request object referred to by
+the global request proxy is used.
+
+Plugin functions for such additional mount points are defined in the
+same way as for those in `korp.py`. The signature corresponding to the
+above calls is
+
+    mount_point(self, *args, request, **kwargs)
+
+(where `*args` should be expanded to the actual positional arguments).
+All mount point functions need to have request as the last positional
+argument.
+
+Three types of call methods are available in KorpFunctionPluginCaller:
+
+- `call_for_request` (and instance method `call`): Call the plugin
+  functions and discard their values.
+- `call_chain_for_request` (and `call_chain`): Call the plugin
+  functions and pass the return value as the first argument of the
+  next function, and return the value returned by the last function.
+- `call_collect_for_request` (and `call_collect`): Call the plugin
+  functions, collect their return values to a list and finally return
+  the list.
+
+Only the first two are currently used in `korp.py`.
+
+
 ## Accessing main application module global variables in plugins
 
 The values of selected global variables in the main application module
