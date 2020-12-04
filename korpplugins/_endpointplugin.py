@@ -29,8 +29,13 @@ class Blueprint(flask.Blueprint):
     _endpoint_decorators = {}
 
     def route(self, rule, *, extra_decorators=None, **options):
-        """Add main_handler and possible optional decorators specified in
+        """Route with rule, adding main_handler and extra_decorators.
+
+        Add main_handler and possible optional decorators specified in
         extra_decorators to endpoints, and default to methods=["GET", "POST"].
+        extra_decorators is an iterable of strings in the reverse order of
+        application, that is, in the order in which they would be specified
+        as decorators (topmost first).
         """
         extra_decorators = extra_decorators or []
         self._instances.add(self)
@@ -40,7 +45,8 @@ class Blueprint(flask.Blueprint):
             def wrapper(*args, **kwargs):
                 return func(*args, **kwargs)
             # Wrap in possible extra decorators and main_handler
-            for decorator_name in extra_decorators + ["main_handler"]:
+            for decorator_name in reversed(["main_handler"]
+                                           + list(extra_decorators)):
                 if decorator_name in self._endpoint_decorators:
                     wrapper = functools.update_wrapper(
                         self._endpoint_decorators[decorator_name](wrapper),
@@ -59,9 +65,24 @@ class Blueprint(flask.Blueprint):
             app.register_blueprint(bp)
 
     @classmethod
-    def set_endpoint_decorators(cls, decor_list):
-        """Set the available endpoint decorators to decor_list (list
-        of decorator functions)."""
-        cls._endpoint_decorators = dict(
+    def add_endpoint_decorators(cls, decor_list):
+        """Add decor_list to the available endpoint decorators."""
+        cls._endpoint_decorators.update(dict(
             (decor.__name__, decor)
-            for decor in decor_list if decor is not None)
+            for decor in decor_list if decor is not None))
+
+    @classmethod
+    def set_endpoint_decorators(cls, decor_list):
+        """Set the available endpoint decorators to decor_list."""
+        cls._endpoint_decorators = {}
+        cls.add_endpoint_decorators(decor_list)
+
+    @classmethod
+    def endpoint_decorator(cls, func):
+        """Decorator to make func available as an endpoint decorator."""
+        # Effectively return func as is but add it to endpoint decorators
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+        cls.add_endpoint_decorators([func])
+        return wrapper

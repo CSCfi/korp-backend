@@ -46,28 +46,59 @@ Individual plugin packages can use separate configuration modules
 
 ## Plugin implementing a new WSGI endpoint
 
+
+### Implementing an endpoint
+
 To implement a new WSGI endpoint, you first create an instance of
 `korpplugins.Blueprint` (a subclass of `flask.Blueprint`) as follows:
 
     test_plugin = korpplugins.Blueprint("test_plugin", __name__)
 
 The actual view function is a generator function decorated with the
-`route` method of the created instance. The decorator takes as its
-arguments the route of the endpoint, and optionally the names of
-possible additional decorators as the keyword argument
-`extra_decorators` (currently `prevent_timeout`) and other options of
-`route`. The generator function takes a single `dict` argument
-containing the parameters of the call and yields the result. For
-example:
+`route` method of the created instance; for example:
 
     @test_plugin.route("/test", extra_decorators=["prevent_timeout"])
     def test(args):
         """Yield arguments wrapped in "args"."""
         yield {"args": args}
 
+The decorator takes as its arguments the route of the endpoint, and
+optionally, an iterable of the names of possible additional decorators
+as the keyword argument `extra_decorators` and other options of
+`route`. `extra_decorators` lists the names in the order in which they
+would be specified as decorators (topmost first), that is, in the
+reverse order of application. The generator function takes a single
+`dict` argument containing the parameters of the call and yields the
+result. For example:
+
 A single plugin module can define multiple new endpoints.
 
-Limitations:
+
+### Defining additional endpoint decorators
+
+By default, the endpoint decorator functions whose names can be listed
+in `extra_decorators` include only `prevent_timeout`, as the endpoints
+defined in this way are always decorated with `main_handler` as the
+topmost decorator. However, additional decorator functions can be
+defined by decorating them with
+`korpplugins.Blueprint.endpoint_decorator`; for example:
+
+    # test_plugin is an instance of korpplugins.Blueprint, so this is
+    # equivalent to @korpplugins.Blueprint.endpoint_decorator
+    @test_plugin.endpoint_decorator
+    def test_decor(generator):
+        """Add to the result an extra layer with text_decor and payload."""
+        @functools.wraps(generator)
+        def decorated(args=None, *pargs, **kwargs):
+            for x in generator(args, *pargs, **kwargs):
+                yield {"test_decor": "Endpoint decorated with test_decor",
+                       "payload": x}
+        return decorated
+
+
+### Limitations
+
+The current implementation has at least the following limitations:
 
 - An endpoint (the view function) defined in a plugin cannot currently
   override an existing view function for the same endpoint defined in
@@ -89,8 +120,12 @@ Limitations:
 Mount-point plugins are defined within subclasses of
 `korpplugins.KorpFunctionPlugin` as instance methods having the name
 of the mount point. The arguments and return values of a mount-point
-plugin are specific to a mount point. Currently the following mount
-points are in use:
+plugin are specific to a mount point.
+
+
+### Mount points
+
+Currently, `korp.py` contains the following mount points:
 
 - `filter_args(self, args, request)`: Modifies the arguments
   `dict` `args` to any endpoint (view function) and returns the
@@ -137,9 +172,33 @@ request object (not a proxy for the request) containing information on
 the request. For example, the endpoint name is available as
 `request.endpoint`.
 
-Please note that each plugin class is instantiated only once (it is a
-singleton), so the possible state stored in `self` is shared by all
-invocations.
+For `filter_*` mount points, the value returned by a plugin is passed
+as the first argument to function of the next plugin. However, if the
+returned value is `None`, either explicitly or if the function has no
+`return` statement with a value, the value is ignored and the argument
+is passed as is to the next plugin. Thus, a plugin function that does
+not modify the value need not return it.
+
+
+### Mount point plugin example
+
+An example of a mount-point plugin function to be called at mount
+point `filter_result`:
+
+    class Test1b(korpplugins.KorpFunctionPlugin):
+
+        def filter_result(self, result, request):
+            """Wrap the result dictionary in "wrap" and add "endpoint"."""
+            return {"endpoint": request.endpoint,
+                    "wrap": result}
+
+
+### Notes on defining a mount point plugin
+
+Each plugin class is instantiated only once (it is a singleton), so
+the possible state stored in `self` is shared by all invocations
+(requests). However, see the next subsection for an approach of
+keeping request-specific state across mount points.
 
 A single plugin class can define only one plugin function for each
 mount point, but a module may contain multiple classes defining plugin
@@ -151,21 +210,89 @@ are called in the order in which the plugin modules are listed in
 defining a plugin function for a mount point, they are called in their
 order of definition in the module.
 
-For `filter_*` mount points, the value returned by a plugin is passed
-as the first argument to function of the next plugin. However, if the
-returned value is `None`, either explicitly or if the function has no
-`return` statement with a value, the value is ignored and the argument
-is passed as is to the next plugin. Thus, a plugin function that does
-not modify the value need not return it.
+If the plugin functions of a class should be applied only to certain
+kinds of requests, for example, to a certain endpoint, the class can
+override the class method `applies_to(cls, request)` to return `True`
+only for requests to which the plugin is applicable. (The parameter
+`request` is the actual Flask request object, not a proxy.)
 
-An example of a mount-point plugin function:
 
-    class Test1b(korpplugins.KorpFunctionPlugin):
+### Keeping request-specific state
 
-        def filter_result(self, result, request):
-            """Wrap the result dictionary in "wrap" and add "endpoint"."""
-            return {"endpoint": request.endpoint,
-                    "wrap": result}
+Request-specific data can be passed from one plugin function to
+another within the same plugin class by using a `dict` attribute (or
+similar) indexed by request objects (or their ids). In general, the
+`enter_handler` method (the first mount point) should initialize a
+space for the data for a request, and `exit_handler` (the last mount
+point) should delete it. For example:
+
+    from types import SimpleNamespace
+
+    class StateTest(korpplugins.KorpFunctionPlugin):
+
+        _data = {}
+
+        def enter_handler(self, args, starttime, request):
+            self._data[request] = data = SimpleNamespace()
+            data.starttime = starttime
+            print("enter_handler, starttime =", starttime)
+
+        def exit_handler(self, endtime, elapsed, request):
+            print("exit_handler, starttime =", self._data[request].starttime,
+                  "endtime =", endtime)
+            del self._data[request]
+
+This works in part because the `request` argument of the plugin
+functions is the actual Flask request object, not the global proxy.
+
+
+### Defining mount points in plugins
+
+In addition to the mount points in `korp.py` listed above, you can
+define mount points in plugins simply by calling them. For example, a
+logging plugin could implement a mount point function `log` that could
+be called from other plugins, both function and endpoint plugins.
+
+Given the Flask request object (or the global request proxy)
+`request`, plugins at mount point `mount_point` can be called as
+follows, with `*args` and `**kwargs` as the positional and keyword
+arguments and discarding the return value:
+
+    korpplugins.KorpFunctionPluginCaller.call_for_request(
+        "mount_point", *args, request, **kwargs)
+
+or, equivalently, getting a caller for a request and calling its
+instance method (typically when the same function or method contains
+several mount point plugin calls):
+
+    plugin_caller = korpplugins.KorpFunctionPluginCaller.get_instance(request)
+    plugin_caller.call("mount_point", *args, **kwargs)
+
+If `request` is omitted or `None`, the request object referred to by
+the global request proxy is used.
+
+Plugin functions for such additional mount points are defined in the
+same way as for those in `korp.py`. The signature corresponding to the
+above calls is
+
+    mount_point(self, *args, request, **kwargs)
+
+(where `*args` should be expanded to the actual positional arguments).
+All mount point functions need to have request as the last positional
+argument.
+
+Three types of call methods are available in KorpFunctionPluginCaller:
+
+- `call_for_request` (and instance method `call`): Call the plugin
+  functions and discard their values.
+- `call_chain_for_request` (and `call_chain`): Call the plugin
+  functions and pass the return value as the first argument of the
+  next function, and return the value returned by the last function.
+- `call_collect_for_request` (and `call_collect`): Call the plugin
+  functions, collect their return values to a list and finally return
+  the list.
+
+Only the first two are currently used in `korp.py`.
 
 
 ## Accessing main application module global variables in plugins
