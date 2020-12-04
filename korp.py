@@ -94,40 +94,6 @@ app.config["MYSQL_CURSORCLASS"] = "DictCursor"
 mysql = MySQL(app)
 
 
-def _get_request_obj(request_obj):
-    """Return the actual non-proxy Request object for request_obj.
-
-    If request_obj is None, get the object for the global request proxy.
-    """
-    request_obj = request_obj or request
-    try:
-        return request_obj._get_current_object()
-    except AttributeError:
-        return request_obj
-
-
-def plugins_call(*args, request_obj=None):
-    """Shorthand for korpplugins.KorpFunctionPlugin.call
-
-    Appends request to the arguments passed forward. If request_obj is
-    not None, use it as the request, otherwise use the actual object
-    behind the global request proxy.
-    """
-    korpplugins.KorpFunctionPlugin.call(
-        *args, _get_request_obj(request_obj))
-
-
-def plugins_call_chain(*args, request_obj=None):
-    """Shorthand for korpplugins.KorpFunctionPlugin.call_chain
-
-    Appends request to the arguments passed forward. If request_obj is
-    not None, use it as the request, otherwise use the actual object
-    behind the global request proxy.
-    """
-    return korpplugins.KorpFunctionPlugin.call_chain(
-        *args, _get_request_obj(request_obj))
-
-
 def main_handler(generator):
     """Decorator wrapping all WSGI endpoints, handling errors and formatting.
 
@@ -159,6 +125,7 @@ def main_handler(generator):
             return generator(args, *pargs, **kwargs)
         else:
             # Function is called externally
+            plugin_caller = korpplugins.KorpFunctionPluginCaller()
             def error_handler():
                 """Format exception info for output to user."""
                 exc = sys.exc_info()
@@ -169,7 +136,7 @@ def main_handler(generator):
                                    }}
                 if "debug" in args:
                     error["ERROR"]["traceback"] = "".join(traceback.format_exception(*exc)).splitlines()
-                plugins_call("error", error, exc)
+                plugin_caller.call("error", error, exc)
                 return error
 
             def incremental_json(ff):
@@ -184,7 +151,7 @@ def main_handler(generator):
                             # Yield whitespace to prevent timeout
                             yield " \n"
                         else:
-                            response = plugins_call_chain(
+                            response = plugin_caller.call_chain(
                                 "filter_result", response)
                             yield json.dumps(response)[1:-1] + ",\n"
                 except GeneratorExit:
@@ -195,10 +162,11 @@ def main_handler(generator):
 
                 endtime = time.time()
                 elapsed_time = endtime - starttime
-                plugins_call("exit_handler", endtime, elapsed_time)
+                plugin_caller.call("exit_handler", endtime, elapsed_time)
                 yield json.dumps({"time": elapsed_time})[1:] + "\n"
                 if callback:
                     yield ")"
+                plugin_caller.cleanup()
 
             def full_json(ff):
                 """Yield full JSON at the end, but until then keep returning newlines to prevent timeout."""
@@ -220,18 +188,19 @@ def main_handler(generator):
                 elapsed_time = endtime - starttime
                 result["time"] = elapsed_time
 
-                result = plugins_call_chain("filter_result", result)
+                result = plugin_caller.call_chain("filter_result", result)
 
                 if callback:
                     result = callback + "(" + json.dumps(result, indent=indent) + ")"
                 else:
                     result = json.dumps(result, indent=indent)
-                plugins_call("exit_handler", endtime, elapsed_time)
+                plugin_caller.call("exit_handler", endtime, elapsed_time)
                 yield result
+                plugin_caller.cleanup()
 
             starttime = time.time()
-            plugins_call("enter_handler", args, starttime)
-            args = plugins_call_chain("filter_args", args)
+            plugin_caller.call("enter_handler", args, starttime)
+            args = plugin_caller.call_chain("filter_args", args)
             incremental = parse_bool(args, "incremental", False)
             callback = args.get("callback")
             indent = int(args.get("indent", 0))
@@ -2488,7 +2457,8 @@ def sql_escape(s):
 
 
 def sql_execute(cursor, sql):
-    sql = plugins_call_chain("filter_sql", sql)
+    sql = korpplugins.KorpFunctionPluginCaller.call_chain_for_request(
+        "filter_sql", sql)
     cursor.execute(sql)
 
 
@@ -3345,19 +3315,19 @@ def run_cqp(command, encoding=None, executable=config.CQP_EXECUTABLE,
     env = os.environ.copy()
     env["LC_COLLATE"] = config.LC_COLLATE
     encoding = encoding or config.CQP_ENCODING
+    plugin_caller = korpplugins.KorpFunctionPluginCaller.get_instance(request)
     if not isinstance(command, str):
         command = "\n".join(command)
     command = "set PrettyPrint off;\n" + command
     command = command.encode(encoding)
-    command = plugins_call_chain(
-        "filter_cqp_input", command, request_obj=request)
+    command = plugin_caller.call_chain("filter_cqp_input", command)
     process = subprocess.Popen([executable, "-c", "-r", registry],
                                stdin=subprocess.PIPE,
                                stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE, env=env)
     reply, error = process.communicate(command)
-    reply, error = plugins_call_chain(
-        "filter_cqp_output", (reply, error), request_obj=request)
+    reply, error = plugin_caller.call_chain(
+        "filter_cqp_output", (reply, error))
     if error and errors != "ignore":
         error = error.decode(encoding)
         # Remove newlines from the error string:
@@ -3539,20 +3509,8 @@ if config.MEMCACHED_SERVERS and not cache_disabled:
 setup_cache()
 
 
-def test_decor(generator):
-    """A decorator for testing specifying extra decorators in WSGI
-    endpoint plugins."""
-    @functools.wraps(generator)
-    def decorated(args=None, *pargs, **kwargs):
-        for x in generator(args, *pargs, **kwargs):
-            yield {"test_decor": "Endpoint decorated with test_decor",
-                   "payload": x}
-    return decorated
-
-
 # Load plugins
-korpplugins.load(app, config.PLUGINS, main_handler,
-                 [prevent_timeout, test_decor],
+korpplugins.load(app, config.PLUGINS, [main_handler, prevent_timeout],
                  dict((name, globals().get(name))
                       for name in [
                           # Allow plugins to access (indirectly) the values of
