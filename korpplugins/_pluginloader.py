@@ -26,18 +26,20 @@ from ._util import pluginconf, print_verbose
 app_globals = SimpleNamespace()
 
 
-def load(app, plugin_list, main_handler=None, extra_decorators=None,
-         app_globals=None):
+def load(app, plugin_list, decorators=None, app_globals=None):
     """Load the plugins in the modules listed in plugin_list.
 
     Load the plugins in the modules listed in plugin_list by importing
     the modules within this package. app is the Flask application, and
-    main_handler and extra_decorators as the decorators for endpoints.
-    app_globals is a dictionary of global application variables to be
-    made available as attributes of the module global app_globals.
+    decorators are the (globally available) decorators for endpoints.
+    (decorators must contain main_handler.) app_globals is a
+    dictionary of global application variables to be made available as
+    attributes of the module global app_globals.
     """
-    Blueprint.set_endpoint_decorators(
-        [main_handler] + (extra_decorators or []))
+    if not decorators or not any(decor.__name__ == "main_handler"
+                                 for decor in decorators):
+        raise ValueError("decorators must contain main_handler")
+    Blueprint.add_endpoint_decorators(decorators)
     app_globals = app_globals or {}
     global_app_globals = globals()["app_globals"]
     for name, val in app_globals.items():

@@ -7,6 +7,8 @@ Korp test plugin for an object- and Blueprint-based plugin proposal: endpoint
 """
 
 
+import functools
+
 import korpplugins
 
 try:
@@ -18,6 +20,18 @@ except ImportError:
 
 
 test_plugin = korpplugins.Blueprint("test_plugin", __name__)
+
+
+@test_plugin.endpoint_decorator
+def test_decor(generator):
+    """A decorator for testing specifying extra decorators in WSGI
+    endpoint plugins."""
+    @functools.wraps(generator)
+    def decorated(args=None, *pargs, **kwargs):
+        for x in generator(args, *pargs, **kwargs):
+            yield {"test_decor": "Endpoint decorated with test_decor",
+                   "payload": x}
+    return decorated
 
 
 @test_plugin.route("/test", extra_decorators=["test_decor"])
