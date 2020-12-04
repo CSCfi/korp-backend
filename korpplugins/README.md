@@ -53,10 +53,12 @@ To implement a new WSGI endpoint, you first create an instance of
 
 The actual view function is a generator function decorated with the
 `route` method of the created instance. The decorator takes as its
-arguments the route of the endpoint, and optionally the names of
-possible additional decorators as the keyword argument
-`extra_decorators` (currently `prevent_timeout`) and other options of
-`route`. The generator function takes a single `dict` argument
+arguments the route of the endpoint, and optionally an iterable of the
+names of possible additional decorators as the keyword argument
+`extra_decorators` and other options of `route`. `extra_decorators`
+lists the names in the order in which they would be specified as
+decorators (topmost first), that is, in the reverse order of
+application. The generator function takes a single `dict` argument
 containing the parameters of the call and yields the result. For
 example:
 
@@ -67,8 +69,11 @@ example:
 
 A single plugin module can define multiple new endpoints.
 
-Additional endpoint decorator functions (whose names can be listed in
-`extra_decorators`) can be defined by decorating them with
+By default, the endpoint decorator functions whose names can be listed
+in `extra_decorators` include only `prevent_timeout`, as the endpoints
+defined in this way are always decorated with `main_handler` as the
+topmost decorator. However, additional decorator functions can be
+defined by decorating them with
 `korpplugins.Blueprint.endpoint_decorator`; for example:
 
     # test_plugin is an instance of korpplugins.Blueprint, so this is

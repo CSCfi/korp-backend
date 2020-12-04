@@ -29,8 +29,13 @@ class Blueprint(flask.Blueprint):
     _endpoint_decorators = {}
 
     def route(self, rule, *, extra_decorators=None, **options):
-        """Add main_handler and possible optional decorators specified in
+        """Route with rule, adding main_handler and extra_decorators.
+
+        Add main_handler and possible optional decorators specified in
         extra_decorators to endpoints, and default to methods=["GET", "POST"].
+        extra_decorators is an iterable of strings in the reverse order of
+        application, that is, in the order in which they would be specified
+        as decorators (topmost first).
         """
         extra_decorators = extra_decorators or []
         self._instances.add(self)
@@ -40,7 +45,8 @@ class Blueprint(flask.Blueprint):
             def wrapper(*args, **kwargs):
                 return func(*args, **kwargs)
             # Wrap in possible extra decorators and main_handler
-            for decorator_name in extra_decorators + ["main_handler"]:
+            for decorator_name in reversed(["main_handler"]
+                                           + list(extra_decorators)):
                 if decorator_name in self._endpoint_decorators:
                     wrapper = functools.update_wrapper(
                         self._endpoint_decorators[decorator_name](wrapper),
