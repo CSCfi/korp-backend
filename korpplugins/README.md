@@ -160,7 +160,8 @@ the request. For example, the endpoint name is available as
 
 Please note that each plugin class is instantiated only once (it is a
 singleton), so the possible state stored in `self` is shared by all
-invocations.
+invocations (requests). However, see below for an approach of keeping
+request-specific state across mount points.
 
 A single plugin class can define only one plugin function for each
 mount point, but a module may contain multiple classes defining plugin
@@ -193,6 +194,32 @@ An example of a mount-point plugin function:
             """Wrap the result dictionary in "wrap" and add "endpoint"."""
             return {"endpoint": request.endpoint,
                     "wrap": result}
+
+Request-specific data can be passed from one plugin function to
+another within the same plugin class by using a `dict` attribute (or
+similar) indexed by request objects (or their ids). In general, the
+`enter_handler` method (the first mount point) should initialize a
+space for the data for a request, and `exit_handler` (the last mount
+point) should delete it. For example:
+
+    from types import SimpleNamespace
+
+    class StateTest(korpplugins.KorpFunctionPlugin):
+
+        _data = {}
+
+        def enter_handler(self, args, starttime, request):
+            self._data[request] = data = SimpleNamespace()
+            data.starttime = starttime
+            print("enter_handler, starttime =", starttime)
+
+        def exit_handler(self, endtime, elapsed, request):
+            print("exit_handler, starttime =", self._data[request].starttime,
+                  "endtime =", endtime)
+            del self._data[request]
+
+This works in part because the `request` argument of the plugin
+functions is the actual Flask request object, not the global proxy.
 
 
 ## Accessing main application module global variables in plugins
