@@ -46,28 +46,35 @@ Individual plugin packages can use separate configuration modules
 
 ## Plugin implementing a new WSGI endpoint
 
+
+### Implementing an endpoint
+
 To implement a new WSGI endpoint, you first create an instance of
 `korpplugins.Blueprint` (a subclass of `flask.Blueprint`) as follows:
 
     test_plugin = korpplugins.Blueprint("test_plugin", __name__)
 
 The actual view function is a generator function decorated with the
-`route` method of the created instance. The decorator takes as its
-arguments the route of the endpoint, and optionally an iterable of the
-names of possible additional decorators as the keyword argument
-`extra_decorators` and other options of `route`. `extra_decorators`
-lists the names in the order in which they would be specified as
-decorators (topmost first), that is, in the reverse order of
-application. The generator function takes a single `dict` argument
-containing the parameters of the call and yields the result. For
-example:
+`route` method of the created instance; for example:
 
     @test_plugin.route("/test", extra_decorators=["prevent_timeout"])
     def test(args):
         """Yield arguments wrapped in "args"."""
         yield {"args": args}
 
+The decorator takes as its arguments the route of the endpoint, and
+optionally, an iterable of the names of possible additional decorators
+as the keyword argument `extra_decorators` and other options of
+`route`. `extra_decorators` lists the names in the order in which they
+would be specified as decorators (topmost first), that is, in the
+reverse order of application. The generator function takes a single
+`dict` argument containing the parameters of the call and yields the
+result. For example:
+
 A single plugin module can define multiple new endpoints.
+
+
+### Defining additional endpoint decorators
 
 By default, the endpoint decorator functions whose names can be listed
 in `extra_decorators` include only `prevent_timeout`, as the endpoints
@@ -88,7 +95,10 @@ defined by decorating them with
                        "payload": x}
         return decorated
 
-Limitations:
+
+### Limitations
+
+The current implementation has at least the following limitations:
 
 - An endpoint (the view function) defined in a plugin cannot currently
   override an existing view function for the same endpoint defined in
@@ -110,8 +120,12 @@ Limitations:
 Mount-point plugins are defined within subclasses of
 `korpplugins.KorpFunctionPlugin` as instance methods having the name
 of the mount point. The arguments and return values of a mount-point
-plugin are specific to a mount point. Currently the following mount
-points are in use:
+plugin are specific to a mount point.
+
+
+### Mount points
+
+Currently, `korp.py` contains the following mount points:
 
 - `filter_args(self, args, request)`: Modifies the arguments
   `dict` `args` to any endpoint (view function) and returns the
@@ -158,10 +172,33 @@ request object (not a proxy for the request) containing information on
 the request. For example, the endpoint name is available as
 `request.endpoint`.
 
-Please note that each plugin class is instantiated only once (it is a
-singleton), so the possible state stored in `self` is shared by all
-invocations (requests). However, see below for an approach of keeping
-request-specific state across mount points.
+For `filter_*` mount points, the value returned by a plugin is passed
+as the first argument to function of the next plugin. However, if the
+returned value is `None`, either explicitly or if the function has no
+`return` statement with a value, the value is ignored and the argument
+is passed as is to the next plugin. Thus, a plugin function that does
+not modify the value need not return it.
+
+
+### Mount point plugin example
+
+An example of a mount-point plugin function to be called at mount
+point `filter_result`:
+
+    class Test1b(korpplugins.KorpFunctionPlugin):
+
+        def filter_result(self, result, request):
+            """Wrap the result dictionary in "wrap" and add "endpoint"."""
+            return {"endpoint": request.endpoint,
+                    "wrap": result}
+
+
+### Notes on defining a mount point plugin
+
+Each plugin class is instantiated only once (it is a singleton), so
+the possible state stored in `self` is shared by all invocations
+(requests). However, see the next subsection for an approach of
+keeping request-specific state across mount points.
 
 A single plugin class can define only one plugin function for each
 mount point, but a module may contain multiple classes defining plugin
@@ -173,27 +210,14 @@ are called in the order in which the plugin modules are listed in
 defining a plugin function for a mount point, they are called in their
 order of definition in the module.
 
-For `filter_*` mount points, the value returned by a plugin is passed
-as the first argument to function of the next plugin. However, if the
-returned value is `None`, either explicitly or if the function has no
-`return` statement with a value, the value is ignored and the argument
-is passed as is to the next plugin. Thus, a plugin function that does
-not modify the value need not return it.
-
 If the plugin functions of a class should be applied only to certain
-kinds of requests, for example, to a certain endpoint, it can override
-the class method `applies_to(cls, request)` to return `True` only for
-requests to which the plugin is applicable. (The parameter `request`
-is the actual Flask request object, not a proxy.)
+kinds of requests, for example, to a certain endpoint, the class can
+override the class method `applies_to(cls, request)` to return `True`
+only for requests to which the plugin is applicable. (The parameter
+`request` is the actual Flask request object, not a proxy.)
 
-An example of a mount-point plugin function:
 
-    class Test1b(korpplugins.KorpFunctionPlugin):
-
-        def filter_result(self, result, request):
-            """Wrap the result dictionary in "wrap" and add "endpoint"."""
-            return {"endpoint": request.endpoint,
-                    "wrap": result}
+### Keeping request-specific state
 
 Request-specific data can be passed from one plugin function to
 another within the same plugin class by using a `dict` attribute (or
