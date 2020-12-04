@@ -46,3 +46,30 @@ class Test3(korpplugins.KorpFunctionPlugin):
 
     def filter_sql(self, sql, request):
         print("filter_sql", sql, request)
+
+
+class Test4a(korpplugins.KorpFunctionPlugin):
+
+    """A function plugin that applies only to the "info" endpoint."""
+
+    @classmethod
+    def applies_to(cls, request_obj):
+        return request_obj.endpoint == 'info'
+
+    def enter_handler(self, args, starttime, request):
+        print("enter_handler, info only")
+
+    def filter_result(self, result, request):
+        return {'info': result}
+
+
+class Test4b(korpplugins.KorpFunctionPlugin):
+
+    """A function plugin that applies only to all but the "info" endpoint."""
+
+    @classmethod
+    def applies_to(cls, request_obj):
+        return request_obj.endpoint != 'info'
+
+    def enter_handler(self, args, starttime, request):
+        print("enter_handler, not info")
