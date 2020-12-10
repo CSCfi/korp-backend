@@ -12,6 +12,7 @@ intended to be visible outside the package are imported at the package level.
 import importlib
 import sys
 
+from collections import OrderedDict
 from types import SimpleNamespace
 
 from ._endpointplugin import Blueprint
@@ -25,6 +26,13 @@ from ._util import pluginconf, print_verbose, print_verbose_delayed
 # package level.
 app_globals = SimpleNamespace()
 
+# An ordered dictionary of loaded plugins: keys are plugin names, values dicts
+# with the key "module" (the plugin module) and any keys from the PLUGIN_INFO
+# dictionary of the plugin module in question, typically "name", "version" and
+# "date". The dictionary is ordered by the order in which the plugins have been
+# loaded.
+loaded_plugins = OrderedDict()
+
 
 def load(app, plugin_list, decorators=None, app_globals=None):
     """Load the plugins in the modules listed in plugin_list.
@@ -36,6 +44,7 @@ def load(app, plugin_list, decorators=None, app_globals=None):
     dictionary of global application variables to be made available as
     attributes of the module global app_globals.
     """
+    global loaded_plugins
     if not decorators or not any(decor.__name__ == "main_handler"
                                  for decor in decorators):
         raise ValueError("decorators must contain main_handler")
@@ -50,6 +59,12 @@ def load(app, plugin_list, decorators=None, app_globals=None):
         try:
             module = importlib.import_module(
                 __name__.rpartition('.')[0] + '.' + plugin)
+            # Add plugin information to loaded_plugins
+            loaded_plugins[plugin] = {"module": module}
+            try:
+                loaded_plugins[plugin].update(module.PLUGIN_INFO)
+            except AttributeError as e:
+                pass
             load_msg = "Loaded Korp plugin \"" + plugin + "\""
             print_verbose(1, load_msg, immediate=True)
             # Print the verbose messages collected when loading the plugin
