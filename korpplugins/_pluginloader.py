@@ -15,7 +15,7 @@ import sys
 from types import SimpleNamespace
 
 from ._endpointplugin import Blueprint
-from ._util import pluginconf, print_verbose
+from ._util import pluginconf, print_verbose, print_verbose_delayed
 
 
 # The attributes of app_globals allows accessing the values of global
@@ -45,12 +45,16 @@ def load(app, plugin_list, decorators=None, app_globals=None):
     for name, val in app_globals.items():
         setattr(global_app_globals, name, val)
     for plugin in plugin_list:
-        print_verbose(1, "Loading Korp plugin \"" + plugin + "\"")
         # We could implement a more elaborate or configurable plugin
         # discovery procedure if needed
         try:
             module = importlib.import_module(
                 __name__.rpartition('.')[0] + '.' + plugin)
+            load_msg = "Loaded Korp plugin \"" + plugin + "\""
+            print_verbose(1, load_msg, immediate=True)
+            # Print the verbose messages collected when loading the plugin
+            # module
+            print_verbose_delayed()
         except ModuleNotFoundError as e:
             if pluginconf.HANDLE_NOT_FOUND == "ignore":
                 continue
