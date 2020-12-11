@@ -12,6 +12,13 @@ import traceback
 import korpplugins
 
 
+PLUGIN_INFO = {
+    "name": "korpplugins test plugin 2",
+    "version": "0.1",
+    "date": "2020-12-10",
+}
+
+
 class Test2(korpplugins.KorpFunctionPlugin):
 
     def filter_result(self, d, request):

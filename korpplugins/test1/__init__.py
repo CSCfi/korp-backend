@@ -19,6 +19,13 @@ except ImportError:
         WRAP_NAME = "wrap_default"
 
 
+PLUGIN_INFO = {
+    "name": "korpplugins test plugin 1",
+    "version": "0.1",
+    "date": "2020-12-10",
+}
+
+
 test_plugin = korpplugins.Blueprint("test_plugin", __name__)
 
 
