@@ -68,3 +68,14 @@ CACHE_MAX_STATS = 5000
 
 # List of names of plugin modules to load
 PLUGINS = []
+
+# korppluginlib configuration: the values here override those in
+# korppluginlib.config; comment these out to use the defaults. For
+# more information, see korppluginlib.config.
+
+# What to do when a plugin is not found: "error", "warn" or "ignore"
+PLUGINS_HANDLE_NOT_FOUND = "warn"
+
+# What to output when loading plugins: 0 = nothing, 1 = plugin names,
+# 2 = plugin and plugin function names
+PLUGINS_LOAD_VERBOSITY = 1

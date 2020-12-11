@@ -21,12 +21,13 @@ the same plugin module.
 ## Configuration
 
 The names of plugins (modules or subpackages) to be used are defined
-in the list `PLUGINS` in `config.py`. If a plugin module is not found,
-a warning is output to the standard output.
+in the list `PLUGINS` in `config.py` (that is, module `config`). If a
+plugin module is not found, a warning is output to the standard
+output.
 
 The configuration of `korppluginlib` is in the module
-`korppluginlib.config`. Currently, the following configuration variables
-are recognized:
+`korppluginlib.config` (file `korppluginlib/config.py`). Currently,
+the following configuration variables are recognized:
 
 - `HANDLE_NOT_FOUND`: What to do when a plugin is not found:
     - `"error"`: Throw an error.
@@ -39,6 +40,11 @@ are recognized:
     - `1` (default): the names of loaded plugins only
     - `2`: the names of loaded plugins and the plugin functions
       handling a route or registered for a plugin mount point
+
+Alternatively, the configuration variables may be specified in
+`config.py`, in which case their names need to be prefixed with
+`PLUGINS_`. The values specified in `config.py` override those in
+`korppluginlib.config`.
 
 Individual plugin packages can use separate configuration modules
 (customarily also named `config`) within the package.
