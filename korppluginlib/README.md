@@ -1,5 +1,5 @@
 
-# `korpplugins`: Korp backend plugin framework (API) (proposal with function plugins as instance methods and Blueprint-based endpoints)
+# `korppluginlib`: Korp backend plugin framework (API) (proposal with function plugins as instance methods and Blueprint-based endpoints)
 
 
 ## Overview
@@ -24,8 +24,8 @@ The names of plugins (modules or subpackages) to be used are defined
 in the list `PLUGINS` in `config.py`. If a plugin module is not found,
 a warning is output to the standard output.
 
-The configuration of `korpplugins` is in the module
-`korpplugins.config`. Currently, the following configuration variables
+The configuration of `korppluginlib` is in the module
+`korppluginlib.config`. Currently, the following configuration variables
 are recognized:
 
 - `HANDLE_NOT_FOUND`: What to do when a plugin is not found:
@@ -34,7 +34,7 @@ are recognized:
       continue.
     - `"ignore"`: Silently ignore.
 
-- `LOAD_VERBOSITY`: What `korpplugins` outputs when loading plugins:
+- `LOAD_VERBOSITY`: What `korppluginlib` outputs when loading plugins:
     - `0`: nothing
     - `1` (default): the names of loaded plugins only
     - `2`: the names of loaded plugins and the plugin functions
@@ -50,9 +50,9 @@ Individual plugin packages can use separate configuration modules
 ### Implementing an endpoint
 
 To implement a new WSGI endpoint, you first create an instance of
-`korpplugins.Blueprint` (a subclass of `flask.Blueprint`) as follows:
+`korppluginlib.Blueprint` (a subclass of `flask.Blueprint`) as follows:
 
-    test_plugin = korpplugins.Blueprint("test_plugin", __name__)
+    test_plugin = korppluginlib.Blueprint("test_plugin", __name__)
 
 The actual view function is a generator function decorated with the
 `route` method of the created instance; for example:
@@ -81,10 +81,10 @@ in `extra_decorators` include only `prevent_timeout`, as the endpoints
 defined in this way are always decorated with `main_handler` as the
 topmost decorator. However, additional decorator functions can be
 defined by decorating them with
-`korpplugins.Blueprint.endpoint_decorator`; for example:
+`korppluginlib.Blueprint.endpoint_decorator`; for example:
 
-    # test_plugin is an instance of korpplugins.Blueprint, so this is
-    # equivalent to @korpplugins.Blueprint.endpoint_decorator
+    # test_plugin is an instance of korppluginlib.Blueprint, so this is
+    # equivalent to @korppluginlib.Blueprint.endpoint_decorator
     @test_plugin.endpoint_decorator
     def test_decor(generator):
         """Add to the result an extra layer with text_decor and payload."""
@@ -118,7 +118,7 @@ The current implementation has at least the following limitations:
 ## Plugin function called at a mount point
 
 Mount-point plugins are defined within subclasses of
-`korpplugins.KorpFunctionPlugin` as instance methods having the name
+`korppluginlib.KorpFunctionPlugin` as instance methods having the name
 of the mount point. The arguments and return values of a mount-point
 plugin are specific to a mount point.
 
@@ -185,7 +185,7 @@ not modify the value need not return it.
 An example of a mount-point plugin function to be called at mount
 point `filter_result`:
 
-    class Test1b(korpplugins.KorpFunctionPlugin):
+    class Test1b(korppluginlib.KorpFunctionPlugin):
 
         def filter_result(self, result, request):
             """Wrap the result dictionary in "wrap" and add "endpoint"."""
@@ -228,7 +228,7 @@ point) should delete it. For example:
 
     from types import SimpleNamespace
 
-    class StateTest(korpplugins.KorpFunctionPlugin):
+    class StateTest(korppluginlib.KorpFunctionPlugin):
 
         _data = {}
 
@@ -258,14 +258,14 @@ Given the Flask request object (or the global request proxy)
 follows, with `*args` and `**kwargs` as the positional and keyword
 arguments and discarding the return value:
 
-    korpplugins.KorpFunctionPluginCaller.call_for_request(
+    korppluginlib.KorpFunctionPluginCaller.call_for_request(
         "mount_point", *args, request, **kwargs)
 
 or, equivalently, getting a caller for a request and calling its
 instance method (typically when the same function or method contains
 several mount point plugin calls):
 
-    plugin_caller = korpplugins.KorpFunctionPluginCaller.get_instance(request)
+    plugin_caller = korppluginlib.KorpFunctionPluginCaller.get_instance(request)
     plugin_caller.call("mount_point", *args, **kwargs)
 
 If `request` is omitted or `None`, the request object referred to by
@@ -299,9 +299,9 @@ Only the first two are currently used in `korp.py`.
 
 The values of selected global variables in the main application module
 `korp.py` are available to plugin modules in the attributes of
-`korpplugins.app_globals`. The variables currently available are
+`korppluginlib.app_globals`. The variables currently available are
 `app`, `mysql` and `KORP_VERSION`, which can be accessed as
-`korpplugins.app_globals.`_name_. In this way, for example, a
+`korppluginlib.app_globals.`_name_. In this way, for example, a
 plugin can access the Korp MySQL database.
 
 
@@ -314,13 +314,13 @@ defined (and if `LOAD_VERBOSITY` is at least 1), but others can be
 freely added as needed. For example:
 
     PLUGIN_INFO = {
-        "name": "korpplugins test plugin 1",
+        "name": "korppluginlib test plugin 1",
         "version": "0.1",
         "date": "2020-12-10",
     }
 
 The information on loaded plugins is accessible in the variable
-`korpplugins.loaded_plugins`. Its value is an `OrderedDict` whose keys
+`korppluginlib.loaded_plugins`. Its value is an `OrderedDict` whose keys
 are plugin names and values are `dict`s with the value of the key
 `"module"` containing the plugin module object and the rest taken from
 the `PLUGIN_INFO` defined in the plugin. The values of

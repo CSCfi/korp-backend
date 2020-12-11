@@ -1,14 +1,14 @@
 
 """
-Module korpplugins._util
+Module korppluginlib._util
 
 Module of utility functions and definitions
 
-This module is intended to be internal to the package korpplugins.
+This module is intended to be internal to the package korppluginlib.
 """
 
 
-# Try to import korpplugins.config as pluginconf; if not available, define
+# Try to import korppluginlib.config as pluginconf; if not available, define
 # class pluginconf with the same effect.
 try:
     from . import config as pluginconf

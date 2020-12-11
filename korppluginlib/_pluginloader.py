@@ -1,10 +1,10 @@
 
 """
-Module korpplugins._pluginloader
+Module korppluginlib._pluginloader
 
-Module containing the korpplugins plugin loading function
+Module containing the korppluginlib plugin loading function
 
-This module is intended to be internal to the package korpplugins; the names
+This module is intended to be internal to the package korppluginlib; the names
 intended to be visible outside the package are imported at the package level.
 """
 
@@ -57,8 +57,7 @@ def load(app, plugin_list, decorators=None, app_globals=None):
         # We could implement a more elaborate or configurable plugin
         # discovery procedure if needed
         try:
-            module = importlib.import_module(
-                __name__.rpartition('.')[0] + '.' + plugin)
+            module = importlib.import_module("korpplugins." + plugin)
             # Add plugin information to loaded_plugins
             loaded_plugins[plugin] = {"module": module}
             try:

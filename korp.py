@@ -48,7 +48,7 @@ import traceback
 import functools
 import math
 import random
-import korpplugins
+import korppluginlib
 import config
 try:
     import pylibmc
@@ -125,7 +125,7 @@ def main_handler(generator):
             return generator(args, *pargs, **kwargs)
         else:
             # Function is called externally
-            plugin_caller = korpplugins.KorpFunctionPluginCaller()
+            plugin_caller = korppluginlib.KorpFunctionPluginCaller()
             def error_handler():
                 """Format exception info for output to user."""
                 exc = sys.exc_info()
@@ -2374,7 +2374,7 @@ def sql_escape(s):
 
 
 def sql_execute(cursor, sql):
-    sql = korpplugins.KorpFunctionPluginCaller.call_chain_for_request(
+    sql = korppluginlib.KorpFunctionPluginCaller.call_chain_for_request(
         "filter_sql", sql)
     cursor.execute(sql)
 
@@ -3230,7 +3230,7 @@ def run_cqp(command, encoding=None, executable=config.CQP_EXECUTABLE,
     env = os.environ.copy()
     env["LC_COLLATE"] = config.LC_COLLATE
     encoding = encoding or config.CQP_ENCODING
-    plugin_caller = korpplugins.KorpFunctionPluginCaller.get_instance(request)
+    plugin_caller = korppluginlib.KorpFunctionPluginCaller.get_instance(request)
     if not isinstance(command, str):
         command = "\n".join(command)
     command = "set PrettyPrint off;\n" + command
@@ -3419,7 +3419,7 @@ setup_cache()
 
 
 # Load plugins
-korpplugins.load(app, config.PLUGINS, [main_handler, prevent_timeout],
+korppluginlib.load(app, config.PLUGINS, [main_handler, prevent_timeout],
                  dict((name, globals().get(name))
                       for name in [
                           # Allow plugins to access (indirectly) the values of

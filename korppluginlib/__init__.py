@@ -1,6 +1,6 @@
 
 """
-Package korpplugins
+Package korppluginlib
 
 A class- and Blueprint-based proposal for a plugin framework for the Korp
 backend
@@ -11,7 +11,7 @@ instance methods, the instances are singletons. Registering plugin functions
 or inspired by http://martyalchin.com/2008/jan/10/simple-plugin-framework/
 
 WSGI endpoints are functions decorated with the route method of an instance of
-korpplugins.Blueprint.
+korppluginlib.Blueprint.
 """
 
 
@@ -20,7 +20,7 @@ korpplugins.Blueprint.
 # in the internal modules.
 
 
-# The following names are visible to the code importing korpplugins
+# The following names are visible to the code importing korppluginlib
 from ._endpointplugin import Blueprint
 from ._functionplugin import KorpFunctionPlugin, KorpFunctionPluginCaller
 from ._pluginloader import load, app_globals, loaded_plugins

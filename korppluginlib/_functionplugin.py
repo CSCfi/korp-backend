@@ -1,6 +1,6 @@
 
 """
-Module korpplugins._functionplugin
+Module korppluginlib._functionplugin
 
 Module containing code for function plugins to be called at mount points
 
@@ -9,7 +9,7 @@ instance methods, the instances are singletons. Registering plugin functions in
 KorpFunctionPlugin subclasses is handled in the metaclass, adapted from or
 inspired by http://martyalchin.com/2008/jan/10/simple-plugin-framework/ .
 
-This module is intended to be internal to the package korpplugins; the names
+This module is intended to be internal to the package korppluginlib; the names
 intended to be visible outside the package are imported at the package level.
 """
 
