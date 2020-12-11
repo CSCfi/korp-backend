@@ -9,6 +9,8 @@ stand-alone module.
 
 import traceback
 
+from types import SimpleNamespace
+
 import korpplugins
 
 
@@ -80,3 +82,20 @@ class Test4b(korpplugins.KorpFunctionPlugin):
 
     def enter_handler(self, args, starttime, request):
         print("enter_handler, not info")
+
+
+class StateTest(korpplugins.KorpFunctionPlugin):
+
+    """A function plugin keeping state (starttime) across functions."""
+
+    _data = {}
+
+    def enter_handler(self, args, starttime, request):
+        self._data[request] = data = SimpleNamespace()
+        data.starttime = starttime
+        print("StateTest.enter_handler: starttime =", starttime)
+
+    def exit_handler(self, endtime, elapsed, request):
+        print("StateTest.exit_handler: starttime =",
+              self._data[request].starttime, "endtime =", endtime)
+        del self._data[request]
