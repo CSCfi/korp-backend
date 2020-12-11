@@ -11,29 +11,29 @@ import traceback
 
 from types import SimpleNamespace
 
-import korpplugins
+import korppluginlib
 
 
 PLUGIN_INFO = {
-    "name": "korpplugins test plugin 2",
+    "name": "korppluginlib test plugin 2",
     "version": "0.1",
     "date": "2020-12-10",
 }
 
 
-class Test2(korpplugins.KorpFunctionPlugin):
+class Test2(korppluginlib.KorpFunctionPlugin):
 
     def filter_result(self, d, request):
         return {"wrap2": d}
 
 
-class Test3(korpplugins.KorpFunctionPlugin):
+class Test3(korppluginlib.KorpFunctionPlugin):
 
     """Print the arguments at all plugin mount points"""
 
     def enter_handler(self, args, starttime, request):
         print("enter_handler", args, starttime, request)
-        print("app_globals:", korpplugins.app_globals)
+        print("app_globals:", korppluginlib.app_globals)
 
     def exit_handler(self, endtime, elapsed, request):
         print("exit_handler", endtime, elapsed, request)
@@ -57,7 +57,7 @@ class Test3(korpplugins.KorpFunctionPlugin):
         print("filter_sql", sql, request)
 
 
-class Test4a(korpplugins.KorpFunctionPlugin):
+class Test4a(korppluginlib.KorpFunctionPlugin):
 
     """A function plugin that applies only to the "info" endpoint."""
 
@@ -72,7 +72,7 @@ class Test4a(korpplugins.KorpFunctionPlugin):
         return {'info': result}
 
 
-class Test4b(korpplugins.KorpFunctionPlugin):
+class Test4b(korppluginlib.KorpFunctionPlugin):
 
     """A function plugin that applies only to all but the "info" endpoint."""
 
@@ -84,7 +84,7 @@ class Test4b(korpplugins.KorpFunctionPlugin):
         print("enter_handler, not info")
 
 
-class StateTest(korpplugins.KorpFunctionPlugin):
+class StateTest(korppluginlib.KorpFunctionPlugin):
 
     """A function plugin keeping state (starttime) across functions."""
 

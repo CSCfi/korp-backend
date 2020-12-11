@@ -9,7 +9,7 @@ Korp test plugin for an object- and Blueprint-based plugin proposal: endpoint
 
 import functools
 
-import korpplugins
+import korppluginlib
 
 try:
     from . import config as pluginconf
@@ -20,13 +20,13 @@ except ImportError:
 
 
 PLUGIN_INFO = {
-    "name": "korpplugins test plugin 1",
+    "name": "korppluginlib test plugin 1",
     "version": "0.1",
     "date": "2020-12-10",
 }
 
 
-test_plugin = korpplugins.Blueprint("test_plugin", __name__)
+test_plugin = korppluginlib.Blueprint("test_plugin", __name__)
 
 
 @test_plugin.endpoint_decorator
@@ -47,7 +47,7 @@ def test(args):
     yield {pluginconf.ARGS_NAME: args}
 
 
-class Test1b(korpplugins.KorpFunctionPlugin):
+class Test1b(korppluginlib.KorpFunctionPlugin):
 
     def filter_result(self, d, request):
         """Wrap the result dictionary in WRAP_NAME and add "endpoint"."""
