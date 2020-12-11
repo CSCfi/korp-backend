@@ -308,7 +308,10 @@ plugin can access the Korp MySQL database.
 ## Plugin information
 
 A plugin module or package may define `dict` `PLUGIN_INFO` containing
-pieces of information on the plugin. For example:
+pieces of information on the plugin. The values of keys `"name"`,
+`"version"` and `"date"` are shown in the plugin load message if
+defined (and if `LOAD_VERBOSITY` is at least 1), but others can be
+freely added as needed. For example:
 
     PLUGIN_INFO = {
         "name": "korpplugins test plugin 1",

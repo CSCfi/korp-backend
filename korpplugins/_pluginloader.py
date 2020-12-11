@@ -66,6 +66,18 @@ def load(app, plugin_list, decorators=None, app_globals=None):
             except AttributeError as e:
                 pass
             load_msg = "Loaded Korp plugin \"" + plugin + "\""
+            if pluginconf.LOAD_VERBOSITY > 0:
+                descr = ""
+                for key, fmt in [
+                    ("name", "{val}"),
+                    ("version", "version {val}"),
+                    ("date", "{val}"),
+                ]:
+                    val = loaded_plugins[plugin].get(key)
+                    if val:
+                        descr += (", " if descr else "") + fmt.format(val=val)
+                if descr:
+                    load_msg += ": " + descr
             print_verbose(1, load_msg, immediate=True)
             # Print the verbose messages collected when loading the plugin
             # module
