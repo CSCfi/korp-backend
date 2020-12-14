@@ -42,22 +42,30 @@ def _make_config(default_conf, *other_confs0):
     attribute access or pairs (conf, prefix), where conf is the object
     and prefix a string to be prefixed to attributes when searching
     from conf.
+
+    Each argument config object may be either a namespace-like object
+    with attributes, in which case its __dict__ attribute is
+    inspected, or a dictionary-like object with keys (and .items).
     """
     result_conf = SimpleNamespace()
     other_confs = []
     for conf in other_confs0:
-        other_confs.append(conf if isinstance(conf, tuple) else (conf, ""))
-    for attrname in default_conf.__dict__:
-        # Default value from default_conf
-        value = getattr(default_conf, attrname)
+        bare_conf, prefix = conf if isinstance(conf, tuple) else (conf, "")
+        other_confs.append((_get_dict(bare_conf), prefix))
+    for attrname, value in _get_dict(default_conf).items():
         for conf, prefix in other_confs:
             try:
-                value = getattr(conf, prefix + attrname)
+                value = conf[prefix + attrname]
                 break
-            except AttributeError:
+            except KeyError:
                 pass
         setattr(result_conf, attrname, value)
     return result_conf
+
+
+def _get_dict(obj):
+    """Return a dictionary representation of obj."""
+    return obj if isinstance(obj, dict) else obj.__dict__
 
 
 # An object containing configuration attribute values. Values are checked first
