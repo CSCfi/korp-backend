@@ -15,7 +15,7 @@ import sys
 from collections import OrderedDict
 from types import SimpleNamespace
 
-from ._configutil import pluginconf
+from ._configutil import pluginconf, add_plugin_config
 from ._endpointplugin import Blueprint
 from ._util import print_verbose, print_verbose_delayed
 
@@ -44,6 +44,12 @@ def load(app, plugin_list, decorators=None, app_globals=None):
     (decorators must contain main_handler.) app_globals is a
     dictionary of global application variables to be made available as
     attributes of the module global app_globals.
+
+    The items in plugin list may be either strings (plugin names) or
+    pairs (plugin name, config) where config is a dictionary- or
+    namespace-like object containing values for configuration
+    variables of the module. The values defined here override those in
+    the possible config submodule of the plugin.
     """
     global loaded_plugins
     if not decorators or not any(decor.__name__ == "main_handler"
@@ -55,6 +61,10 @@ def load(app, plugin_list, decorators=None, app_globals=None):
     for name, val in app_globals.items():
         setattr(global_app_globals, name, val)
     for plugin in plugin_list:
+        # Add possible configuration
+        if isinstance(plugin, tuple) and len(plugin) > 1:
+            add_plugin_config(plugin[0], plugin[1])
+            plugin = plugin[0]
         # We could implement a more elaborate or configurable plugin
         # discovery procedure if needed
         try:

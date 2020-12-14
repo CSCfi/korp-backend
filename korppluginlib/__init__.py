@@ -21,6 +21,7 @@ korppluginlib.Blueprint.
 
 
 # The following names are visible to the code importing korppluginlib
+from ._configutil import get_plugin_config
 from ._endpointplugin import Blueprint
 from ._functionplugin import KorpFunctionPlugin, KorpFunctionPluginCaller
 from ._pluginloader import load, app_globals, loaded_plugins

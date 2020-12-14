@@ -20,6 +20,9 @@ the same plugin module.
 
 ## Configuration
 
+
+### Configuring `korppluginlib`
+
 The names of plugins (modules or subpackages) to be used are defined
 in the list `PLUGINS` in `config.py` (that is, module `config`). If a
 plugin module is not found, a warning is output to the standard
@@ -46,8 +49,44 @@ Alternatively, the configuration variables may be specified in
 `PLUGINS_`. The values specified in `config.py` override those in
 `korppluginlib.config`.
 
-Individual plugin packages can use separate configuration modules
-(customarily also named `config`) within the package.
+
+### Configuring individual plugins
+
+Values for the configuration variables of individual plugin modules or
+subpackages can be specified in two places:
+
+- An item in the list `PLUGINS` in the Korp `config` module can be a
+  pair `(`_plugin\_name_`,` _config_`)`, where _config_ may be either
+  a dictionary- or namespace-like object containing configuration
+  variables.
+
+- If the plugin is a subpackage (and not a single module), it can use
+  separate configuration module named `config` within the package,
+  consisting of configuration variables.
+
+The values specified in the `PLUGINS` list override those in a
+possible `config` module.
+
+To get values from these sources, the plugin module needs to call
+`korppluginlib.get_plugin_config` with default values of configuration
+variables. The function returns an object containing configuration
+variables with their values (an instance of `types.SimpleNamespace`).
+For example:
+
+    pluginconf = korppluginlib.get_plugin_config(
+        CONFIG_VAR = "value",
+    )
+
+The configured value of `CONFIG_VAR` can be then accessed as
+`pluginconf.CONFIG_VAR`.
+
+Note that the value returned by `get_plugin_config` contains values
+only for the keys specified in the default values given as arguments,
+even if the other places for configuration variables defined
+additional variables. The default values can be specified either as
+keyword arguments to `get_plugin_config` or as a single value that can
+be either a dictionary- or namespace-like object. The returned value
+is always a `SimpleNamespace`.
 
 
 ## Plugin implementing a new WSGI endpoint
