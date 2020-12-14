@@ -15,8 +15,9 @@ import sys
 from collections import OrderedDict
 from types import SimpleNamespace
 
+from ._configutil import pluginconf
 from ._endpointplugin import Blueprint
-from ._util import pluginconf, print_verbose, print_verbose_delayed
+from ._util import print_verbose, print_verbose_delayed
 
 
 # The attributes of app_globals allows accessing the values of global
