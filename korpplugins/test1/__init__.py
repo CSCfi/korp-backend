@@ -11,12 +11,11 @@ import functools
 
 import korppluginlib
 
-try:
-    from . import config as pluginconf
-except ImportError:
-    class pluginconf:
-        ARGS_NAME = "args_default"
-        WRAP_NAME = "wrap_default"
+
+pluginconf = korppluginlib.get_plugin_config(
+    ARGS_NAME = "args_default",
+    WRAP_NAME = "wrap_default",
+)
 
 
 PLUGIN_INFO = {
