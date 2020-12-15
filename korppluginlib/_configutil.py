@@ -133,7 +133,9 @@ def get_plugin_config(defaults=None, **kw_defaults):
     (typically in the list of plugins to load); (2) the value of Korp's
     config.PLUGIN_CONFIG_PLUGINNAME (PLUGINNAME replaced with the name
     of the plugin in upper case); (3) "config" module for the plugin
-    (korpplugins.<plugin>.config); and (4) defaults.
+    (package.plugin.config for sub-package plugins, package.config for
+    module plugins), unless the plugin is a top-level module; and (4)
+    defaults.
 
     If defaults is not specified or is empty and no keyword arguments
     are specified, the configuration variables and their default
@@ -149,14 +151,27 @@ def get_plugin_config(defaults=None, **kw_defaults):
         defaults = kw_defaults
     # Use the facilities in the module inspect to avoid having to pass __name__
     # as an argument to the function (https://stackoverflow.com/a/1095621)
-    module_name = inspect.getmodule(inspect.stack()[1][0]).__name__
-    # Assume module name korpplugins.<plugin>.module[.submodule...]
-    module_name_comps = module_name.split(".")
-    plugin = module_name_comps[1]
-    pkg = module_name_comps[0] + "." + plugin
-    try:
-        plugin_config_mod = importlib.import_module(pkg + ".config")
-    except ImportError:
+    module = inspect.getmodule(inspect.stack()[1][0])
+    # Assume module name package.plugin_package.module[.submodule...],
+    # package.plugin_module or plugin_module
+    module_name_comps = module.__name__.split(".")
+    if len(module_name_comps) > 1:
+        pkg, plugin = module_name_comps[:2]
+        # Module name does not contain ".__init__", so test it separately
+        if len(module_name_comps) > 2 or "__init__.py" in module.__file__:
+            # package.plugin_package.module[.submodule...]
+            config_name = pkg + "." + plugin + ".config"
+        else:
+            # package.plugin_module
+            config_name = pkg + ".config"
+        # Import the configuration module if available
+        try:
+            plugin_config_mod = importlib.import_module(config_name)
+        except ImportError:
+            plugin_config_mod = SimpleNamespace()
+    else:
+        # plugin_module
+        plugin = module_name_comps[0]
         plugin_config_mod = SimpleNamespace()
     if plugin not in _plugin_configs_expanded:
         plugin_configs[plugin] = _make_config(
