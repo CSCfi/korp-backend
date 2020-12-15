@@ -100,9 +100,13 @@ def _get_dict(obj):
 pluginconf = _make_config((korpconf, "PLUGINS_"), _pluginconf, _conf_defaults)
 
 
-# Plugin configuration variables, added by add_plugin_config (plugin name ->
-# namespace)
+# Plugin configuration variables, added by add_plugin_config and possibly
+# augmented by get_plugin_config (plugin name -> namespace)
 _plugin_configs = {}
+
+# The names of plugins whose configurations in _plugin_configs have already
+# been expanded by get_plugin_config.
+_plugin_configs_expanded = set()
 
 
 def add_plugin_config(plugin_name, config):
@@ -134,6 +138,11 @@ def get_plugin_config(defaults=None, **kw_defaults):
     are specified, the configuration variables and their default
     values are taken from the first non-empty of (3), (2) and (1),
     tried in this order.
+
+    The function also assigns the result to _plugin_configs[plugin].
+    If the function is called again for the same plugin, it returns
+    the same result as on the first call, even if the default keys
+    were different.
     """
     if defaults is None:
         defaults = kw_defaults
@@ -148,8 +157,11 @@ def get_plugin_config(defaults=None, **kw_defaults):
         plugin_config_mod = importlib.import_module(pkg + ".config")
     except ImportError:
         plugin_config_mod = SimpleNamespace()
-    return _make_config(
-        _plugin_configs.get(plugin, {}),
-        getattr(korpconf, "PLUGIN_CONFIG_" + plugin.upper(), {}),
-        plugin_config_mod,
-        defaults or {})
+    if plugin not in _plugin_configs_expanded:
+        _plugin_configs[plugin] = _make_config(
+            _plugin_configs.get(plugin, {}),
+            getattr(korpconf, "PLUGIN_CONFIG_" + plugin.upper(), {}),
+            plugin_config_mod,
+            defaults or {})
+        _plugin_configs_expanded.add(plugin)
+    return _plugin_configs[plugin]
