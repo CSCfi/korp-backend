@@ -125,13 +125,15 @@ def get_plugin_config(defaults=None, **kw_defaults):
     can be either a dictionary- or namespace-like object. Values are
     taken from the first of the following three in which a value is
     found: (1) plugin configuration added using add_plugin_config
-    (typically in the list of plugins to load); (2) "config" module for
-    the plugin (korpplugins.<plugin>.config); and (3) defaults.
+    (typically in the list of plugins to load); (2) the value of Korp's
+    config.PLUGIN_CONFIG_PLUGINNAME (PLUGINNAME replaced with the name
+    of the plugin in upper case); (3) "config" module for the plugin
+    (korpplugins.<plugin>.config); and (4) defaults.
 
     If defaults is not specified or is empty and no keyword arguments
     are specified, the configuration variables and their default
-    values are taken from the first non-empty of (2) and (1), tried in
-    this order.
+    values are taken from the first non-empty of (3), (2) and (1),
+    tried in this order.
     """
     if defaults is None:
         defaults = kw_defaults
@@ -146,5 +148,8 @@ def get_plugin_config(defaults=None, **kw_defaults):
         plugin_config_mod = importlib.import_module(pkg + ".config")
     except ImportError:
         plugin_config_mod = SimpleNamespace()
-    return _make_config(_plugin_configs.get(plugin, {}), plugin_config_mod,
-                        defaults or {})
+    return _make_config(
+        _plugin_configs.get(plugin, {}),
+        getattr(korpconf, "PLUGIN_CONFIG_" + plugin.upper(), {}),
+        plugin_config_mod,
+        defaults or {})

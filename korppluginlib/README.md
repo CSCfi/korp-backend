@@ -53,19 +53,24 @@ Alternatively, the configuration variables may be specified in
 ### Configuring individual plugins
 
 Values for the configuration variables of individual plugin modules or
-subpackages can be specified in two places:
+subpackages can be specified in three places:
 
-- An item in the list `PLUGINS` in the Korp `config` module can be a
-  pair `(`_plugin\_name_`,` _config_`)`, where _config_ may be either
-  a dictionary- or namespace-like object containing configuration
-  variables.
+1. An item in the list `PLUGINS` in the Korp `config` module can be a
+   pair `(`_plugin\_name_`,` _config_`)`, where _config_ may be either
+   a dictionary- or namespace-like object containing configuration
+   variables.
 
-- If the plugin is a subpackage (and not a single module), it can use
-  separate configuration module named `config` within the package,
-  consisting of configuration variables.
+2. Korp’s `config.py` can contain a definition of the variable
+   `PLUGIN_CONFIG_`_PLUGINNAME_ (where _PLUGINNAME_ is the name of the
+   plugin in upper case), whose value may be either a dictionary- or
+   namespace-like object with configration variables.
 
-The values specified in the `PLUGINS` list override those in a
-possible `config` module.
+3. If the plugin is a subpackage (and not a single module), it can use
+   separate configuration module named `config` within the package,
+   consisting of configuration variables.
+
+The value for a configuration variable is taken from the first of the
+above in which it is set.
 
 To get values from these sources, the plugin module needs to call
 `korppluginlib.get_plugin_config` with default values of configuration
