@@ -15,7 +15,7 @@ import sys
 from collections import OrderedDict
 from types import SimpleNamespace
 
-from ._configutil import pluginconf, add_plugin_config, plugin_configs
+from ._configutil import pluginlibconf, add_plugin_config, plugin_configs
 from ._endpointplugin import Blueprint
 from ._util import print_verbose, print_verbose_delayed
 
@@ -76,7 +76,7 @@ def load(app, plugin_list, decorators=None, app_globals=None):
             except AttributeError as e:
                 pass
             load_msg = "Loaded Korp plugin \"" + plugin + "\""
-            if pluginconf.LOAD_VERBOSITY > 0:
+            if pluginlibconf.LOAD_VERBOSITY > 0:
                 descr = ""
                 for key, fmt in [
                     ("name", "{val}"),
@@ -95,10 +95,10 @@ def load(app, plugin_list, decorators=None, app_globals=None):
             # module
             print_verbose_delayed()
         except ModuleNotFoundError as e:
-            if pluginconf.HANDLE_NOT_FOUND == "ignore":
+            if pluginlibconf.HANDLE_NOT_FOUND == "ignore":
                 continue
             msg_base = "Plugin \"" + plugin + "\" not found:"
-            if pluginconf.HANDLE_NOT_FOUND == "warn":
+            if pluginlibconf.HANDLE_NOT_FOUND == "warn":
                 print("Warning:", msg_base, e, file=sys.stderr)
             else:
                 print(msg_base, file=sys.stderr)

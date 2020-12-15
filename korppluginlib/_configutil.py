@@ -17,13 +17,13 @@ from types import SimpleNamespace
 import config as korpconf
 
 
-# Try to import korppluginlib.config as _pluginconf; if not available, define
-# _pluginconf as a SimpleNamespace. These are used to fill in the pluginconf
-# SimpleNamespace below.
+# Try to import korppluginlib.config as _pluginlibconf; if not available,
+# define _pluginlibconf as a SimpleNamespace. These are used to fill in the
+# pluginlibconf SimpleNamespace below.
 try:
-    from . import config as _pluginconf
+    from . import config as _pluginlibconf
 except ImportError:
-    _pluginconf = SimpleNamespace()
+    _pluginlibconf = SimpleNamespace()
 
 
 # Default configuration values, if found neither in module korppluginlib.config
@@ -97,7 +97,8 @@ def _get_dict(obj):
 # An object containing configuration attribute values. Values are checked first
 # from the Korp configuration (with prefix "PLUGINS_"), then in
 # korppluginlib.config, then the defaults in _conf_defaults.
-pluginconf = _make_config((korpconf, "PLUGINS_"), _pluginconf, _conf_defaults)
+pluginlibconf = _make_config(
+    (korpconf, "PLUGINS_"), _pluginlibconf, _conf_defaults)
 
 
 # Plugin configuration variables, added by add_plugin_config and possibly
