@@ -83,7 +83,9 @@ The configured value of `CONFIG_VAR` can be then accessed as
 Note that the value returned by `get_plugin_config` contains values
 only for the keys specified in the default values given as arguments,
 even if the other places for configuration variables defined
-additional variables. The default values can be specified either as
+additional variables. (If `get_plugin_config` is called without
+arguments, the values defined in a possible configuration module are
+taken as defaults.) The default values can be specified either as
 keyword arguments to `get_plugin_config` or as a single value that can
 be either a dictionary- or namespace-like object. The returned value
 is always a `SimpleNamespace`.

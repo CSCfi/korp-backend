@@ -36,34 +36,56 @@ _conf_defaults = SimpleNamespace(
 )
 
 
-def _make_config(default_conf, *other_confs0):
-    """Return a config object with values from default_conf or other_confs.
+def _make_config(*configs):
+    """Return a config object with values from configs.
 
-    The returned object is a SimpleNamespace object that has a value
-    for each attribute in default_conf. The value is overridden by the
-    corresponding value in the first of other_confs0 that has an
-    attribute with the same name. other_confs0 are objects with
-    attribute access or pairs (conf, prefix), where conf is the object
-    and prefix a string to be prefixed to attributes when searching
-    from conf.
+    The returned object is a SimpleNamespace object that has a value for
+    each attribute in *last* non-empty of configs, treated as defaults.
+    The value is overridden by the corresponding value in the *first* of
+    other configs that has an attribute with the same name. If an item
+    in configs has an attribute that is not in the defaults, it is
+    ignored.
 
-    Each argument config object may be either a namespace-like object
-    with attributes, in which case its __dict__ attribute is
-    inspected, or a dictionary-like object with keys (and .items).
+    Each configuration object is either a namespace-like object with
+    attributes, in which case its __dict__ attribute is inspected, or
+    a dictionary-like object whose keys can be iterated. Each item in
+    configs is either such a configuration object directly or a pair
+    (conf, prefix), where conf is the object and prefix is a string to
+    be prefixed to attributes when searching from conf.
     """
-    result_conf = SimpleNamespace()
+    # We need to handle the default configuration separately, as it lists the
+    # available configuration attributes
+    default_conf = {}
     other_confs = []
-    for conf in other_confs0:
+    # Loop over configs in the reverse order
+    for conf in reversed(configs):
         bare_conf, prefix = conf if isinstance(conf, tuple) else (conf, "")
-        other_confs.append((_get_dict(bare_conf), prefix))
-    for attrname, value in _get_dict(default_conf).items():
-        for conf, prefix in other_confs:
-            try:
-                value = conf[prefix + attrname]
-                break
-            except KeyError:
-                pass
-        setattr(result_conf, attrname, value)
+        conf_dict = _get_dict(bare_conf)
+        if conf_dict:
+            if not default_conf:
+                # This is the last non-empty conf, so make it default
+                if prefix:
+                    # Use only prefixed keys and remove the prefix from the
+                    # default keys
+                    default_conf = dict((key[len(prefix):], val)
+                                        for key, val in conf_dict.items()
+                                        if key.startswith(prefix))
+                else:
+                    default_conf = conf_dict
+            else:
+                # Prepend non-defaults to other_confs: earlier ones have higher
+                # priority, but they are later in the reversed list
+                other_confs[:0] = [(conf_dict, prefix)]
+    result_conf = SimpleNamespace(**default_conf)
+    if other_confs:
+        for attrname in default_conf:
+            for conf, prefix in other_confs:
+                try:
+                    setattr(result_conf, attrname, conf[prefix + attrname])
+                    # If a value was available, ignore the rest of configs
+                    break
+                except KeyError:
+                    pass
     return result_conf
 
 
@@ -75,7 +97,7 @@ def _get_dict(obj):
 # An object containing configuration attribute values. Values are checked first
 # from the Korp configuration (with prefix "PLUGINS_"), then in
 # korppluginlib.config, then the defaults in _conf_defaults.
-pluginconf = _make_config(_conf_defaults, (korpconf, "PLUGINS_"), _pluginconf)
+pluginconf = _make_config((korpconf, "PLUGINS_"), _pluginconf, _conf_defaults)
 
 
 # Plugin configuration variables, added by add_plugin_config (plugin name ->
@@ -106,10 +128,10 @@ def get_plugin_config(defaults=None, **kw_defaults):
     (typically in the list of plugins to load); (2) "config" module for
     the plugin (korpplugins.<plugin>.config); and (3) defaults.
 
-    Note that if defaults is not specified or is empty and no keyword
-    arguments are specified, the returned namespace object is empty,
-    even if the other places for configuration had defined some
-    variables.
+    If defaults is not specified or is empty and no keyword arguments
+    are specified, the configuration variables and their default
+    values are taken from the first non-empty of (2) and (1), tried in
+    this order.
     """
     if defaults is None:
         defaults = kw_defaults
@@ -124,5 +146,5 @@ def get_plugin_config(defaults=None, **kw_defaults):
         plugin_config_mod = importlib.import_module(pkg + ".config")
     except ImportError:
         plugin_config_mod = SimpleNamespace()
-    return _make_config(defaults or {}, _plugin_configs.get(plugin, {}),
-                        plugin_config_mod)
+    return _make_config(_plugin_configs.get(plugin, {}), plugin_config_mod,
+                        defaults or {})
