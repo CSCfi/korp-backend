@@ -15,7 +15,7 @@ import sys
 from collections import OrderedDict
 from types import SimpleNamespace
 
-from ._configutil import pluginconf, add_plugin_config, _plugin_configs
+from ._configutil import pluginconf, add_plugin_config, plugin_configs
 from ._endpointplugin import Blueprint
 from ._util import print_verbose, print_verbose_delayed
 
@@ -88,8 +88,8 @@ def load(app, plugin_list, decorators=None, app_globals=None):
                         descr += (", " if descr else "") + fmt.format(val=val)
                 if descr:
                     load_msg += ": " + descr
-            if plugin in _plugin_configs:
-                print_verbose(2, "  configuration:", _plugin_configs[plugin])
+            if plugin in plugin_configs:
+                print_verbose(2, "  configuration:", plugin_configs[plugin])
             print_verbose(1, load_msg, immediate=True)
             # Print the verbose messages collected when loading the plugin
             # module

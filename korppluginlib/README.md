@@ -83,7 +83,9 @@ For example:
     )
 
 The configured value of `CONFIG_VAR` can be then accessed as
-`pluginconf.CONFIG_VAR`.
+`pluginconf.CONFIG_VAR`. Once the plugin has been loaded, other
+plugins can also access it as
+`korppluginlib.plugin_configs["`_plugin_`"].CONFIG_VAR`.
 
 Note that the value returned by `get_plugin_config` contains values
 only for the keys specified in the default values given as arguments,
