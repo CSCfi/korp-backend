@@ -4,8 +4,8 @@ korppluginlib.config
 
 Configuration module for korppluginlib.
 
-The values here may be overridden in the Korp config module by
-prefixing the names with "PLUGINS_".
+The values here may be overridden in the Korp config module within the
+dictionary or namespace object PLUGINLIB_CONFIG.
 """
 
 

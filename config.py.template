@@ -73,9 +73,11 @@ PLUGINS = []
 # korppluginlib.config; comment these out to use the defaults. For
 # more information, see korppluginlib.config.
 
-# What to do when a plugin is not found: "error", "warn" or "ignore"
-PLUGINS_HANDLE_NOT_FOUND = "warn"
-
-# What to output when loading plugins: 0 = nothing, 1 = plugin names,
-# 2 = plugin and plugin function names
-PLUGINS_LOAD_VERBOSITY = 1
+PLUGINLIB_CONFIG = dict(
+    # What to do when a plugin is not found: "error", "warn" or
+    # "ignore"
+    HANDLE_NOT_FOUND = "warn",
+    # What to output when loading plugins: 0 = nothing, 1 = plugin names,
+    # 2 = plugin and plugin function names
+    LOAD_VERBOSITY = 1,
+)

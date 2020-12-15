@@ -95,10 +95,12 @@ def _get_dict(obj):
 
 
 # An object containing configuration attribute values. Values are checked first
-# from the Korp configuration (with prefix "PLUGINS_"), then in
-# korppluginlib.config, then the defaults in _conf_defaults.
+# from the dictionary or namespace PLUGINLIB_CONFIG in the Korp configuration,
+# then in korppluginlib.config, and finally the defaults in _conf_defaults.
 pluginlibconf = _make_config(
-    (korpconf, "PLUGINS_"), _pluginlibconf, _conf_defaults)
+    getattr(korpconf, "PLUGINLIB_CONFIG", {}),
+    _pluginlibconf,
+    _conf_defaults)
 
 
 # Plugin configuration variables, added by add_plugin_config and possibly

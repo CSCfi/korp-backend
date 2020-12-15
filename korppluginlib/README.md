@@ -45,8 +45,15 @@ the following configuration variables are recognized:
       handling a route or registered for a plugin mount point
 
 Alternatively, the configuration variables may be specified in
-`config.py`, in which case their names need to be prefixed with
-`PLUGINS_`. The values specified in `config.py` override those in
+`config.py` within the dictionary or namespace object
+`PLUGINLIB_CONFIG`; for example:
+
+    PLUGINLIB_CONFIG = dict(
+        HANDLE_NOT_FOUND = "warn",
+        LOAD_VERBOSITY = 1,
+    )
+
+The values specified in `config.py` override those in
 `korppluginlib.config`.
 
 
