@@ -9,6 +9,18 @@ dictionary or namespace object PLUGINLIB_CONFIG.
 """
 
 
+# PACKAGES is a list of packages which may contain plugins. The
+# packages may be namespace packages, so their modules may be under
+# different directory roots. An empty string denotes top-level modules
+# without packages. The packages are searched for a plugin in the
+# order in which they are listed.
+PACKAGES = ["korpplugins"]
+
+# SEARCH_PATH is a list of directories in which to search for plugins
+# (the packages listed in PACKAGES) in addition to default ones
+# (appended to sys.path).
+SEARCH_PATH = []
+
 # HANDLE_NOT_FOUND controls what to do when a plugin is not found:
 # "error" = throw an error, "warn" = output a warning to the standard
 # error but continue, "ignore" = silently ignore

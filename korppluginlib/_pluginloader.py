@@ -60,22 +60,23 @@ def load(app, plugin_list, decorators=None, app_globals=None):
     global_app_globals = globals()["app_globals"]
     for name, val in app_globals.items():
         setattr(global_app_globals, name, val)
+    saved_sys_path = sys.path
+    sys.path.extend(pluginlibconf.SEARCH_PATH)
     for plugin in plugin_list:
         # Add possible configuration
         if isinstance(plugin, tuple) and len(plugin) > 1:
             add_plugin_config(plugin[0], plugin[1])
             plugin = plugin[0]
-        # We could implement a more elaborate or configurable plugin
-        # discovery procedure if needed
         try:
-            module = importlib.import_module("korpplugins." + plugin)
+            module = _find_plugin(plugin)
             # Add plugin information to loaded_plugins
             loaded_plugins[plugin] = {"module": module}
             try:
                 loaded_plugins[plugin].update(module.PLUGIN_INFO)
             except AttributeError as e:
                 pass
-            load_msg = "Loaded Korp plugin \"" + plugin + "\""
+            load_msg = ("Loaded Korp plugin \"" + plugin + "\" ("
+                        + module.__name__ + ")")
             if pluginlibconf.LOAD_VERBOSITY > 0:
                 descr = ""
                 for key, fmt in [
@@ -103,4 +104,24 @@ def load(app, plugin_list, decorators=None, app_globals=None):
             else:
                 print(msg_base, file=sys.stderr)
                 raise
+    sys.path = saved_sys_path
     Blueprint.register_all(app)
+
+
+def _find_plugin(plugin):
+    """ """
+    module = None
+    not_found = []
+    for pkg in pluginlibconf.PACKAGES:
+        module_name = pkg + "." + plugin if pkg else plugin
+        try:
+            return importlib.import_module(module_name)
+        except ModuleNotFoundError as e:
+            not_found.append("'" + module_name + "'")
+    if len(not_found) == 1:
+        not_found_str = not_found[0]
+    else:
+        not_found_str = ", ".join(not_found[:-1]) + " nor " + not_found[-1]
+    raise ModuleNotFoundError(
+        "No module named " + not_found_str + " in any of "
+        + ", ".join((dir or ".") for dir in sys.path))

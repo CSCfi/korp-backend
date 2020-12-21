@@ -29,6 +29,10 @@ except ImportError:
 # Default configuration values, if found neither in module korppluginlib.config
 # nor config
 _conf_defaults = SimpleNamespace(
+    # Plugins are in package "korpplugins"
+    PACKAGES = ["korpplugins"],
+    # Search plugins only in the default ones
+    SEARCH_PATH = [],
     # When loading, print plugin module names but not function names
     LOAD_VERBOSITY = 1,
     # Warn if a plugin is not found

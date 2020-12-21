@@ -74,8 +74,11 @@ PLUGINS = []
 # more information, see korppluginlib.config.
 
 PLUGINLIB_CONFIG = dict(
-    # What to do when a plugin is not found: "error", "warn" or
-    # "ignore"
+    # Packages which may contain plugins; "" for top-level modules
+    PACKAGES = ["korpplugins"],
+    # Directories to search for plugins (packages) in addition to default ones
+    SEARCH_PATH = [],
+    # What to do when a plugin is not found: "error", "warn" or "ignore"
     HANDLE_NOT_FOUND = "warn",
     # What to output when loading plugins: 0 = nothing, 1 = plugin names,
     # 2 = plugin and plugin function names

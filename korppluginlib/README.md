@@ -10,9 +10,9 @@ The Korp backend supports two kinds of plugins:
 2. plugin functions called at certain points (“mount points”) in
    `korp.py` when handling a request.
 
-Plugins are defined as Python modules or subpackages within the
-package `korpplugins`. (This might be relaxed so that plugin modules
-or packages would not need to be within `korpplugins`.)
+Plugins are defined as Python modules or subpackages, by default
+within the package `korpplugins` (customizable via the configuration
+variable `PACKAGES`; see [below](#configuring-korppluginlib)).
 
 Both WSGI endpoint plugins and mount-point plugins can be defined in
 the same plugin module.
@@ -31,6 +31,16 @@ output.
 The configuration of `korppluginlib` is in the module
 `korppluginlib.config` (file `korppluginlib/config.py`). Currently,
 the following configuration variables are recognized:
+
+- `PACKAGES`: A list of packages which may contain plugins; default:
+  `["korpplugins"]`. The packages may be namespace packages, so their
+  modules may be under different directory roots. An empty string
+  denotes top-level modules without packages. The packages are
+  searched for a plugin in the order in which they are listed.
+
+- `SEARCH_PATH`: A list of directories in which to search for plugins
+  (the packages listed in `PACKAGES`) in addition to default ones
+  (appended to `sys.path`); default: `[]`.
 
 - `HANDLE_NOT_FOUND`: What to do when a plugin is not found:
     - `"error"`: Throw an error.
