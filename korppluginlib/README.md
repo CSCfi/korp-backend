@@ -117,6 +117,29 @@ be either a dictionary- or namespace-like object. The returned value
 is always a `SimpleNamespace`.
 
 
+## Plugin information
+
+A plugin module or package may define `dict` `PLUGIN_INFO` containing
+pieces of information on the plugin. The values of keys `"name"`,
+`"version"` and `"date"` are shown in the plugin load message if
+defined (and if `LOAD_VERBOSITY` is at least 1), but others can be
+freely added as needed. For example:
+
+    PLUGIN_INFO = {
+        "name": "korppluginlib test plugin 1",
+        "version": "0.1",
+        "date": "2020-12-10",
+    }
+
+The information on loaded plugins is accessible in the variable
+`korppluginlib.loaded_plugins`. Its value is an `OrderedDict` whose keys
+are plugin names and values are `dict`s with the value of the key
+`"module"` containing the plugin module object and the rest taken from
+the `PLUGIN_INFO` defined in the plugin. The values in
+`loaded_plugins` are in the order in which the plugins have been
+loaded.
+
+
 ## Endpoint plugins
 
 
@@ -403,26 +426,3 @@ The values of selected global variables in the main application module
 `app`, `mysql` and `KORP_VERSION`, which can be accessed as
 `korppluginlib.app_globals.`_name_. In this way, for example, a
 plugin can access the Korp MySQL database.
-
-
-## Plugin information
-
-A plugin module or package may define `dict` `PLUGIN_INFO` containing
-pieces of information on the plugin. The values of keys `"name"`,
-`"version"` and `"date"` are shown in the plugin load message if
-defined (and if `LOAD_VERBOSITY` is at least 1), but others can be
-freely added as needed. For example:
-
-    PLUGIN_INFO = {
-        "name": "korppluginlib test plugin 1",
-        "version": "0.1",
-        "date": "2020-12-10",
-    }
-
-The information on loaded plugins is accessible in the variable
-`korppluginlib.loaded_plugins`. Its value is an `OrderedDict` whose keys
-are plugin names and values are `dict`s with the value of the key
-`"module"` containing the plugin module object and the rest taken from
-the `PLUGIN_INFO` defined in the plugin. The values in
-`loaded_plugins` are in the order in which the plugins have been
-loaded.
