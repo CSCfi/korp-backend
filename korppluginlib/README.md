@@ -1,21 +1,22 @@
 
-# `korppluginlib`: Korp backend plugin framework (API) (proposal with function plugins as instance methods and Blueprint-based endpoints)
+# `korppluginlib`: Korp backend plugin framework (API) (proposal)
 
 
 ## Overview
 
 The Korp backend supports two kinds of plugins:
 
-1. plugins implementing new WSGI endpoints, and
-2. plugin functions called at certain points (“mount points”) in
-   `korp.py` when handling a request.
+1. *endpoint plugins* implementing new WSGI endpoints, and
+2. *callback plugins* containing callbacks called at certain points
+   (*plugin hook points*) in `korp.py` when handling a request, to
+   filter data or to perform an action.
 
 Plugins are defined as Python modules or subpackages, by default
 within the package `korpplugins` (customizable via the configuration
 variable `PACKAGES`; see [below](#configuring-korppluginlib)).
 
-Both WSGI endpoint plugins and mount-point plugins can be defined in
-the same plugin module.
+Both WSGI endpoint plugins and callback plugins can be defined in the
+same plugin module.
 
 
 ## Configuration
@@ -24,9 +25,9 @@ the same plugin module.
 ### Configuring `korppluginlib`
 
 The names of plugins (modules or subpackages) to be used are defined
-in the list `PLUGINS` in `config.py` (that is, module `config`). If a
-plugin module is not found, a warning is output to the standard
-output.
+in the list `PLUGINS` in `config.py` (that is, Korp’s top-level module
+`config`). If a plugin module is not found, a warning is output to the
+standard output.
 
 The configuration of `korppluginlib` is in the module
 `korppluginlib.config` (file `korppluginlib/config.py`). Currently,
@@ -51,11 +52,12 @@ the following configuration variables are recognized:
 - `LOAD_VERBOSITY`: What `korppluginlib` outputs when loading plugins:
     - `0`: nothing
     - `1` (default): the names of loaded plugins only
-    - `2`: the names of loaded plugins and the plugin functions
-      handling a route or registered for a plugin mount point
+    - `2`: the names of loaded plugins and their possible
+      configurations, and the view functions handling a route or
+      callback methods registered for a hook point
 
-Alternatively, the configuration variables may be specified in
-`config.py` within the dictionary or namespace object
+Alternatively, the configuration variables may be specified in the
+top-level module `config` within the dictionary or namespace object
 `PLUGINLIB_CONFIG`; for example:
 
     PLUGINLIB_CONFIG = dict(
@@ -63,7 +65,7 @@ Alternatively, the configuration variables may be specified in
         LOAD_VERBOSITY = 1,
     )
 
-The values specified in `config.py` override those in
+The values specified in the top-level `config` override those in
 `korppluginlib.config`.
 
 
@@ -72,12 +74,12 @@ The values specified in `config.py` override those in
 Values for the configuration variables of individual plugin modules or
 subpackages can be specified in three places:
 
-1. An item in the list `PLUGINS` in the Korp `config` module can be a
-   pair `(`_plugin\_name_`,` _config_`)`, where _config_ may be either
-   a dictionary- or namespace-like object containing configuration
-   variables.
+1. An item in the list `PLUGINS` in Korp’s top-level `config` module
+   can be a pair `(`_plugin\_name_`,` _config_`)`, where _config_ may
+   be either a dictionary- or namespace-like object containing
+   configuration variables.
 
-2. Korp’s `config.py` can contain a definition of the variable
+2. Korp’s top-level `config` module can define the variable
    `PLUGIN_CONFIG_`_PLUGINNAME_ (where _PLUGINNAME_ is the name of the
    plugin in upper case), whose value may be either a dictionary- or
    namespace-like object with configration variables.
@@ -115,10 +117,10 @@ be either a dictionary- or namespace-like object. The returned value
 is always a `SimpleNamespace`.
 
 
-## Plugin implementing a new WSGI endpoint
+## Endpoint plugins
 
 
-### Implementing an endpoint
+### Implementing a new WSGI endpoint
 
 To implement a new WSGI endpoint, you first create an instance of
 `korppluginlib.Blueprint` (a subclass of `flask.Blueprint`) as follows:
@@ -175,28 +177,52 @@ The current implementation has at least the following limitations:
   override an existing view function for the same endpoint defined in
   `korp.py` or in a plugin loaded earlier (listed earlier in
   `config.PLUGINS`). (But if the need arises, this restriction can
-  probably be lifted or relaxed, so that a viewpoint function could
-  declare that it overrides another view function.)
+  probably be lifted or relaxed, so that a view function could declare
+  that it overrides another view function.)
 
 - It is also not possible to modify the functionality of an existing
   endpoint, for example, by calling the existing view function from
   the function defined in a plugin, possibly modifying the arguments
   or the result. However, in many cases, a similar effect can be
-  achieved by defining the appropriate mount-point plugin functions
-  `filter_args` and `filter_result`; see below.
+  achieved by defining the appropriate callback methods for hook
+  points `filter_args` and `filter_result`; see
+  [below](#filter-hook-points).
 
 
-## Plugin function called at a mount point
+## Callback plugins
 
-Mount-point plugins are defined within subclasses of
-`korppluginlib.KorpFunctionPlugin` as instance methods having the name
-of the mount point. The arguments and return values of a mount-point
-plugin are specific to a mount point.
+Callbacks to be called at specific *plugin hook points* in `korp.py`
+are defined within subclasses of `korppluginlib.KorpCallbackPlugin` as
+instance methods having the name of the hook point. The arguments and
+return values of a callback method are specific to a hook point.
+
+In the argument `request`, each callback method gets the actual Flask
+request object (not a proxy for the request) containing information on
+the request. For example, the endpoint name is available as
+`request.endpoint`.
+
+`korp.py` contains two kinds of hook points:
+
+1. *filter hook points* call callbacks that may filter (modify) a
+   value, and
+2. *event hook points* call callbacks when a specific event has taken
+   place.
 
 
-### Mount points
+### Filter hook points
 
-Currently, `korp.py` contains the following mount points:
+For filter hook points, the value returned by a callback method is
+passed as the first argument to the callback method defined by the
+next plugin, similar to function composition or method chaining.
+However, a callback for a filter hook point *need not* modify the
+value: if the returned value is `None`, either explicitly or if the
+method has no `return` statement with a value, the value is ignored
+and the argument is passed as is to the callback method in the next
+plugin. Thus, a callback method that does not modify the value need
+not return it.
+
+Filter hook points and the signatures of their callback methods are
+the following:
 
 - `filter_args(self, args, request)`: Modifies the arguments
   `dict` `args` to any endpoint (view function) and returns the
@@ -220,17 +246,25 @@ Currently, `korp.py` contains the following mount points:
   `sql` to be passed to the MySQL/MariaDB database server and returns
   the modified value.
 
+
+### Event hook points
+
+Callback methods for event hook points do not return a value. (A
+possible return value is ignored.)
+
+Event hook points and the signatures of their callback methods are the
+following:
+
 - `enter_handler(self, args, starttime, request)`: Called near
   the beginning of a view function for an endpoint. `args` is a `dict`
   of arguments to the endpoint and `starttime` is the current time as
-  seconds since the epoch as a floating point number. Does not return
-  a value.
+  seconds since the epoch as a floating point number.
 
 - `exit_handler(self, endtime, elapsed_time, request)`: Called
   just before exiting a view function for an endpoint (before yielding
   a response). `endtime` is the current time as seconds since the
   epoch as a floating point number, and `elapsed_time` is the time
-  spent in the view function. Does not return a value.
+  spent in the view function as seconds.
 
 - `error(self, error, exc, request)`: Called after an exception
   has occurred. `error` is the `dict` to be returned in JSON as
@@ -238,25 +272,13 @@ Currently, `korp.py` contains the following mount points:
   `debug=true` had been specified), and `exc` contains exception
   information as returned by `sys.exc_info()`.
 
-For each mount point, the argument `request` is the actual Flask
-request object (not a proxy for the request) containing information on
-the request. For example, the endpoint name is available as
-`request.endpoint`.
 
-For `filter_*` mount points, the value returned by a plugin is passed
-as the first argument to function of the next plugin. However, if the
-returned value is `None`, either explicitly or if the function has no
-`return` statement with a value, the value is ignored and the argument
-is passed as is to the next plugin. Thus, a plugin function that does
-not modify the value need not return it.
+### Callback plugin example
 
+An example of a callback plugin containing a callback method to be
+called at the hook point `filter_result`:
 
-### Mount point plugin example
-
-An example of a mount-point plugin function to be called at mount
-point `filter_result`:
-
-    class Test1b(korppluginlib.KorpFunctionPlugin):
+    class Test1b(korppluginlib.KorpCallbackPlugin):
 
         def filter_result(self, result, request):
             """Wrap the result dictionary in "wrap" and add "endpoint"."""
@@ -264,24 +286,25 @@ point `filter_result`:
                     "wrap": result}
 
 
-### Notes on defining a mount point plugin
+### Notes on implementing a callback plugin
 
 Each plugin class is instantiated only once (it is a singleton), so
 the possible state stored in `self` is shared by all invocations
-(requests). However, see the next subsection for an approach of
-keeping request-specific state across mount points.
+(requests). However, see [the next
+subsection](#keeping-request-specific-state) for an approach of
+keeping request-specific state across hook points.
 
-A single plugin class can define only one plugin function for each
-mount point, but a module may contain multiple classes defining plugin
-functions for the same mount point.
+A single plugin class can define only one callback method for each
+hook point, but a module may contain multiple classes defining
+callback methods for the same hook point.
 
-If multiple plugins define a plugin function for a mount point, they
+If multiple plugins define a callback method for a hook point, they
 are called in the order in which the plugin modules are listed in
 `config.PLUGINS`. If a plugin module contains multiple classes
-defining a plugin function for a mount point, they are called in their
-order of definition in the module.
+defining a callback method for a hook point, they are called in the
+order in which they are defined in the module.
 
-If the plugin functions of a class should be applied only to certain
+If the callback methods of a class should be applied only to certain
 kinds of requests, for example, to a certain endpoint, the class can
 override the class method `applies_to(cls, request)` to return `True`
 only for requests to which the plugin is applicable. (The parameter
@@ -290,16 +313,17 @@ only for requests to which the plugin is applicable. (The parameter
 
 ### Keeping request-specific state
 
-Request-specific data can be passed from one plugin function to
-another within the same plugin class by using a `dict` attribute (or
-similar) indexed by request objects (or their ids). In general, the
-`enter_handler` method (the first mount point) should initialize a
-space for the data for a request, and `exit_handler` (the last mount
-point) should delete it. For example:
+Request-specific data can be passed from one callback method to
+another within the same callback plugin class by using a `dict`
+attribute (or similar) indexed by request objects (or their ids). In
+general, the `enter_handler` callback method (called at the first hook
+point) should initialize a space for the data for a request, and
+`exit_handler` (called at the last hook point) should delete it. For
+example:
 
     from types import SimpleNamespace
 
-    class StateTest(korppluginlib.KorpFunctionPlugin):
+    class StateTest(korppluginlib.KorpCallbackPlugin):
 
         _data = {}
 
@@ -313,54 +337,59 @@ point) should delete it. For example:
                   "endtime =", endtime)
             del self._data[request]
 
-This works in part because the `request` argument of the plugin
-functions is the actual Flask request object, not the global proxy.
+This works in part because the `request` argument of the callback
+methods is the actual Flask request object, not the global proxy.
 
 
-### Defining mount points in plugins
+### Defining hook points in plugins
 
-In addition to the mount points in `korp.py` listed above, you can
-define mount points in plugins simply by calling them. For example, a
-logging plugin could implement a mount point function `log` that could
-be called from other plugins, both function and endpoint plugins.
+In addition to the hook points in `korp.py` listed above, you can
+define hook points in plugins by invoking callbacks with the name of
+the hook point by using special call methods. For example, a logging
+plugin could implement a callback method `log` that could be called
+from other plugins, both callback and endpoint plugins.
 
 Given the Flask request object (or the global request proxy)
-`request`, plugins at mount point `mount_point` can be called as
-follows, with `*args` and `**kwargs` as the positional and keyword
-arguments and discarding the return value:
+`request`, callbacks for the (event) hook point `hook_point` can be
+called as follows, with `*args` and `**kwargs` as the positional and
+keyword arguments and discarding the return value:
 
-    korppluginlib.KorpFunctionPluginCaller.call_for_request(
-        "mount_point", *args, request, **kwargs)
+    korppluginlib.KorpCallbackPluginCaller.call_for_request(
+        "hook_point", *args, request, **kwargs)
 
-or, equivalently, getting a caller for a request and calling its
-instance method (typically when the same function or method contains
-several mount point plugin calls):
+or, equivalently, getting a caller object for a request and calling
+its instance method (typically when the same function or method
+contains several hook points):
 
-    plugin_caller = korppluginlib.KorpFunctionPluginCaller.get_instance(request)
-    plugin_caller.call("mount_point", *args, **kwargs)
+    plugin_caller = korppluginlib.KorpCallbackPluginCaller.get_instance(request)
+    plugin_caller.call("hook_point", *args, **kwargs)
 
 If `request` is omitted or `None`, the request object referred to by
 the global request proxy is used.
 
-Plugin functions for such additional mount points are defined in the
-same way as for those in `korp.py`. The signature corresponding to the
-above calls is
+Callbacks for such additional hook points are defined in the same way
+as for those in `korp.py`. The signature corresponding to the above
+calls is
 
-    mount_point(self, *args, request, **kwargs)
+    hook_point(self, *args, request, **kwargs)
 
 (where `*args` should be expanded to the actual positional arguments).
-All mount point functions need to have request as the last positional
+All callback methods need to have request as the last positional
 argument.
 
-Three types of call methods are available in KorpFunctionPluginCaller:
+Three types of call methods are available in KorpCallbackPluginCaller:
 
-- `call_for_request` (and instance method `call`): Call the plugin
-  functions and discard their values.
-- `call_chain_for_request` (and `call_chain`): Call the plugin
-  functions and pass the return value as the first argument of the
-  next function, and return the value returned by the last function.
-- `call_collect_for_request` (and `call_collect`): Call the plugin
-  functions, collect their return values to a list and finally return
+- `call_for_request` (and instance method `call`): Call the callback
+  methods and discard their possible return values (for event hook
+  points).
+
+- `call_chain_for_request` (and `call_chain`): Call the callback
+  methods and pass the return value as the first argument of the next
+  callback method, and return the value returned by the last callback
+  emthod (for filter hook points).
+
+- `call_collect_for_request` (and `call_collect`): Call the callback
+  methods, collect their return values to a list and finally return
   the list.
 
 Only the first two are currently used in `korp.py`.
@@ -394,6 +423,6 @@ The information on loaded plugins is accessible in the variable
 `korppluginlib.loaded_plugins`. Its value is an `OrderedDict` whose keys
 are plugin names and values are `dict`s with the value of the key
 `"module"` containing the plugin module object and the rest taken from
-the `PLUGIN_INFO` defined in the plugin. The values of
+the `PLUGIN_INFO` defined in the plugin. The values in
 `loaded_plugins` are in the order in which the plugins have been
 loaded.
