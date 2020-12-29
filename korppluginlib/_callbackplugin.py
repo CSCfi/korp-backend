@@ -1,6 +1,6 @@
 
 """
-Module korppluginlib._functionplugin
+Module korppluginlib._callbackplugin
 
 Module containing code for function plugins to be called at mount points
 
