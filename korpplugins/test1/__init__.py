@@ -46,7 +46,7 @@ def test(args):
     yield {pluginconf.ARGS_NAME: args}
 
 
-class Test1b(korppluginlib.KorpFunctionPlugin):
+class Test1b(korppluginlib.KorpCallbackPlugin):
 
     def filter_result(self, d, request):
         """Wrap the result dictionary in WRAP_NAME and add "endpoint"."""

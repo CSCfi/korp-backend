@@ -21,13 +21,13 @@ PLUGIN_INFO = {
 }
 
 
-class Test2(korppluginlib.KorpFunctionPlugin):
+class Test2(korppluginlib.KorpCallbackPlugin):
 
     def filter_result(self, d, request):
         return {"wrap2": d}
 
 
-class Test3(korppluginlib.KorpFunctionPlugin):
+class Test3(korppluginlib.KorpCallbackPlugin):
 
     """Print the arguments at all plugin mount points"""
 
@@ -57,9 +57,9 @@ class Test3(korppluginlib.KorpFunctionPlugin):
         print("filter_sql", sql, request)
 
 
-class Test4a(korppluginlib.KorpFunctionPlugin):
+class Test4a(korppluginlib.KorpCallbackPlugin):
 
-    """A function plugin that applies only to the "info" endpoint."""
+    """A callback plugin that applies only to the "info" endpoint."""
 
     @classmethod
     def applies_to(cls, request_obj):
@@ -72,9 +72,9 @@ class Test4a(korppluginlib.KorpFunctionPlugin):
         return {'info': result}
 
 
-class Test4b(korppluginlib.KorpFunctionPlugin):
+class Test4b(korppluginlib.KorpCallbackPlugin):
 
-    """A function plugin that applies only to all but the "info" endpoint."""
+    """A callback plugin that applies only to all but the "info" endpoint."""
 
     @classmethod
     def applies_to(cls, request_obj):
@@ -84,9 +84,9 @@ class Test4b(korppluginlib.KorpFunctionPlugin):
         print("enter_handler, not info")
 
 
-class StateTest(korppluginlib.KorpFunctionPlugin):
+class StateTest(korppluginlib.KorpCallbackPlugin):
 
-    """A function plugin keeping state (starttime) across functions."""
+    """A callback plugin keeping state (starttime) across callbacks."""
 
     _data = {}
 
