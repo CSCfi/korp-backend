@@ -13,8 +13,19 @@ queries and decoded in query results.
 
 import re
 
-import korpplugins
-from . import config as pluginconf
+import korppluginlib
+
+
+# See config.py.template for further documentation of the configuration
+# variables
+pluginconf = korppluginlib.get_plugin_config(
+    # Special characters encoded
+    SPECIAL_CHARS = " /<>|",
+    # The character for encoding the first character in SPECIAL_CHARS
+    ENCODED_SPECIAL_CHAR_OFFSET = 0x7F,
+    # Prefix for the encoded form of special characters
+    ENCODED_SPECIAL_CHAR_PREFIX = "",
+)
 
 
 # The following constants and functions would logically belong to the class
@@ -93,7 +104,7 @@ def _encode_special_chars_in_queries(cqp_list):
     return [_encode_special_chars_in_query(cqp) for cqp in cqp_list]
 
 
-class SpecialCharacterTranscoder(korpplugins.KorpFunctionPlugin):
+class SpecialCharacterTranscoder(korppluginlib.KorpCallbackPlugin):
 
     def filter_args(self, args, request):
         """Encode special characters in CQP queries"""
