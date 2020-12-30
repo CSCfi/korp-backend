@@ -47,6 +47,7 @@ LOG_CATEGORIES = [
     "load",
     "params",
     "referrer",
+    "result",
     "times",
     "userinfo",
 ]

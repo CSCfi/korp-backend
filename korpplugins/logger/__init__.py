@@ -53,6 +53,7 @@ pluginconf = korppluginlib.get_plugin_config(
         "load",
         "params",
         "referrer",
+        "result",
         "times",
         "userinfo",
     ],
@@ -223,6 +224,8 @@ class KorpLogger(korppluginlib.KorpCallbackPlugin):
         """
         # TODO: Truncate the value if too long
         logger = KorpLogger._get_logger(request)
+        if "corpus_hits" in result:
+            self._log(logger.info, "result", "Hits", result["corpus_hits"])
         self._log(logger.debug, "debug", "Result", result)
 
     def filter_cqp_input(self, cqp, request):
