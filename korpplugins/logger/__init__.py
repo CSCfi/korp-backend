@@ -23,8 +23,42 @@ import os
 import os.path
 import time
 
-import korpplugins
-from . import config as pluginconf
+import korppluginlib
+
+
+# See config.py.template for more information on the configuration variables
+
+pluginconf = korppluginlib.get_plugin_config(
+    # Base directory for log files
+    LOG_BASEDIR = "/v/korp/log/korp-py",
+    # Log filename format string (for str.format())
+    LOG_FILENAME_FORMAT = (
+        "{year}{mon:02}{mday:02}/korp-{year}{mon:02}{mday:02}"
+        "_{hour:02}{min:02}{sec:02}-{pid:06}.log"),
+    # Default log level
+    LOG_LEVEL = logging.INFO,
+    # If True, change the log level to logging.DEBUG if the query parameters in
+    # the HTTP request contain "debug=true".
+    LOG_ENABLE_DEBUG_PARAM = True,
+    # Log message format string using the percent formatting for
+    # logging.Formatter.
+    LOG_FORMAT = (
+        "[korp.py %(levelname)s %(process)d:%(request)d @ %(asctime)s]"
+        " %(message)s"),
+    # Categories of information to be logged: all available are listed
+    LOG_CATEGORIES = [
+        "auth",
+        "debug",
+        "env",
+        "load",
+        "params",
+        "referrer",
+        "times",
+        "userinfo",
+    ],
+    # A list of individual log items to be excluded from logging.
+    LOG_EXCLUDE_ITEMS = [],
+)
 
 
 class LevelLoggerAdapter(logging.LoggerAdapter):
@@ -65,7 +99,7 @@ class LevelLoggerAdapter(logging.LoggerAdapter):
             self._log(level, msg, args, **kwargs)
 
 
-class KorpLogger(korpplugins.KorpFunctionPlugin):
+class KorpLogger(korppluginlib.KorpCallbackPlugin):
 
     """Class containing plugin functions for various mount points"""
 
@@ -167,7 +201,7 @@ class KorpLogger(korpplugins.KorpFunctionPlugin):
             self._log(logger.info, "auth", "Auth-user", auth_user)
         self._log(logger.debug, "env", "Env", env)
         # self._log(logger.debug, "env", "App",
-        #           repr(korpplugins.app_globals.app.__dict__))
+        #           repr(korppluginlib.app_globals.app.__dict__))
 
     def exit_handler(self, endtime, elapsed_time, request):
         """Log information at exiting Korp"""
@@ -209,8 +243,9 @@ class KorpLogger(korpplugins.KorpFunctionPlugin):
         logging.Logger.
 
         This general logging method can be called from other plugins
-        via korpplugins.KorpFunctionPlugin.call("log", ...) whenever
-        they wish to log something.
+        via
+        korppluginlib.KorpCallbackPluginCaller.call_for_request("log",
+        ...) whenever they wish to log something.
         """
         logger = KorpLogger._get_logger(request)
         self._log(getattr(logger, levelname, logger.info),
