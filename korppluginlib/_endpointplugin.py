@@ -1,13 +1,13 @@
 
 """
-Module korpplugins._endpointplugin
+Module korppluginlib._endpointplugin
 
 Module containing code for WSGI endpoint plugins
 
 In plugin modules, functions decorated with the route method of an instance of
-korpplugins.Blueprint define new WSGI endpoints.
+korppluginlib.Blueprint define new WSGI endpoints.
 
-This module is intended to be internal to the package korpplugins; the names
+This module is intended to be internal to the package korppluginlib; the names
 intended to be visible outside the package are imported at the package level.
 """
 

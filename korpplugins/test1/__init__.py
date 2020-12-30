@@ -9,17 +9,23 @@ Korp test plugin for an object- and Blueprint-based plugin proposal: endpoint
 
 import functools
 
-import korpplugins
-
-try:
-    from . import config as pluginconf
-except ImportError:
-    class pluginconf:
-        ARGS_NAME = "args_default"
-        WRAP_NAME = "wrap_default"
+import korppluginlib
 
 
-test_plugin = korpplugins.Blueprint("test_plugin", __name__)
+pluginconf = korppluginlib.get_plugin_config(
+    ARGS_NAME = "args_default",
+    WRAP_NAME = "wrap_default",
+)
+
+
+PLUGIN_INFO = {
+    "name": "korppluginlib test plugin 1",
+    "version": "0.1",
+    "date": "2020-12-10",
+}
+
+
+test_plugin = korppluginlib.Blueprint("test_plugin", __name__)
 
 
 @test_plugin.endpoint_decorator
@@ -40,7 +46,7 @@ def test(args):
     yield {pluginconf.ARGS_NAME: args}
 
 
-class Test1b(korpplugins.KorpFunctionPlugin):
+class Test1b(korppluginlib.KorpCallbackPlugin):
 
     def filter_result(self, d, request):
         """Wrap the result dictionary in WRAP_NAME and add "endpoint"."""
