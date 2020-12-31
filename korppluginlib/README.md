@@ -148,7 +148,14 @@ loaded.
 To implement a new WSGI endpoint, you first create an instance of
 `korppluginlib.Blueprint` (a subclass of `flask.Blueprint`) as follows:
 
-    test_plugin = korppluginlib.Blueprint("test_plugin", __name__)
+    test_plugin = korppluginlib.Blueprint()
+
+You can also specify a name for the plugin, overriding the default
+that is the calling module name `__name__`:
+
+    test_plugin = korppluginlib.Blueprint("test_plugin")
+
+You may also pass other arguments recognized by `flask.Blueprint`.
 
 The actual view function is a generator function decorated with the
 `route` method of the created instance; for example:
