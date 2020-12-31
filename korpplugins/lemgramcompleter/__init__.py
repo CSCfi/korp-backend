@@ -12,16 +12,14 @@ completions for a prefix.
 # - Add parameters affecting the result.
 
 
-from flask import request
-
-import korpplugins
+import korppluginlib
 
 
 # The name of the MySQL database and table prefix
 DBTABLE = "lemgram_index"
 
 
-plugin = korpplugins.Blueprint("lemgramcompleter_plugin", __name__)
+plugin = korppluginlib.Blueprint("lemgramcompleter_plugin", __name__)
 
 
 @plugin.route("/lemgram_complete", extra_decorators=["prevent_timeout"])
@@ -60,7 +58,7 @@ def lemgram_complete(args):
 
 
 def _get_lemgrams(wf, corpora, limit):
-    app_globals = korpplugins.app_globals
+    app_globals = korppluginlib.app_globals
     with app_globals.app.app_context():
         cursor = app_globals.mysql.connection.cursor()
         result = _query_lemgrams(cursor, wf, corpora, limit)[:limit]
@@ -82,8 +80,8 @@ def _query_lemgrams(cursor, wf, param_corpora, limit):
         for suffpatt, is_any_prefix in [("..%", False), ("%", True)]:
             sql = _make_lemgram_query_part(wf + suffpatt, corpora, limit)
             # print(sql)
-            sql = korpplugins.KorpFunctionPlugin.call_chain(
-                "filter_sql", sql, request._get_current_object())
+            sql = korppluginlib.KorpCallbackPluginCaller.call_chain_for_request(
+                "filter_sql", sql)
             cursor.execute(sql)
             _retrieve_lemgrams(cursor, wf, modcase, is_any_prefix, result,
                                result_set)
