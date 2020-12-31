@@ -25,7 +25,7 @@ PLUGIN_INFO = {
 }
 
 
-test_plugin = korppluginlib.Blueprint("test_plugin", __name__)
+test_plugin = korppluginlib.KorpEndpointPlugin()
 
 
 @test_plugin.endpoint_decorator
