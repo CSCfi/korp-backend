@@ -106,7 +106,7 @@ def load(app, plugin_list, decorators=None, app_globals=None):
                 raise
     sys.path = saved_sys_path
     KorpEndpointPlugin.register_all(app)
-    _remove_duplicate_routing_rules(app)
+    _handle_duplicate_routing_rules(app)
 
 
 def _find_plugin(plugin):
@@ -135,6 +135,68 @@ def _find_plugin(plugin):
         + ", ".join((dir or ".") for dir in sys.path))
 
 
+def _handle_duplicate_routing_rules(app):
+    """Handle duplicate routing rules according to HANDLE_DUPLICATE_ROUTES.
+
+    If app contains duplicate routing rules (added by plugins), handle
+    them as specified by  pluginlibconf.HANDLE_DUPLICATE_ROUTES:
+      "override": use the endpoint defined last without printing anything,
+          allowing a plugin to override a built-in endpoint; if multiple
+          plugins define an endpoint for the same route, the last one is
+          used
+      "override,warn": use the last endpoint and print a warning to stderr
+      "ignore": use the endpoint defined first (Flask default behaviour)
+          without printing anything
+      "warn": use the endpoint defined first (Flask default) and print a
+          warning message to stderr
+      "error": print an error message to stderr and raise ValueError
+    """
+    handle_mode = pluginlibconf.HANDLE_DUPLICATE_ROUTES
+    if "override" in handle_mode:
+        _remove_duplicate_routing_rules(app)
+    elif handle_mode in ("warn", "error"):
+        dupls = _find_key_duplicates(app.url_map.iter_rules())
+        if dupls:
+            for rule_name, rules in dupls.items():
+                msg_base = (
+                    "Multiple endpoints for routing rule \"" + rule_name + "\"")
+                if handle_mode == "warn":
+                    msg = ("Warning: " + msg_base + ": using the first ("
+                           + rules[0].endpoint + "), discarding the rest ("
+                           + ", ".join(rule.endpoint for rule in rules[1:])
+                           + ")")
+                else:
+                    msg = (msg_base + ": "
+                           + ", ".join(rule.endpoint for rule in rules))
+                print(msg, file=sys.stderr)
+            if handle_mode == "error":
+                raise ValueError(
+                    "Multiple endpoints for a routing rule")
+
+
+def _find_key_duplicates(iterable, key_func=str):
+    """Return OrderedDict with lists of duplicates in iterable by key_func.
+
+    Return an OrderedDict containing lists of values in iterable with
+    the same value returend by key_func(value). The keys in the return
+    value are those returned by key_func. Keys with a single value are
+    omitted, so each list in the returned value contains at least two
+    items.
+    """
+    item_dict = OrderedDict()
+    for item in iterable:
+        item_key = key_func(item)
+        if item_key not in item_dict:
+            item_dict[item_key] = []
+        item_dict[item_key].append(item)
+    # Remove keys with only a single item; done this way, as we cannot delete
+    # from a dictionary while iterating over it.
+    for item_key in [item_key for item_key, items in item_dict.items()
+                     if len(items) == 1]:
+        del item_dict[item_key]
+    return item_dict
+
+
 def _remove_duplicate_routing_rules(app):
     """Remove duplicate routing rules from app, keeping only the last one.
 
@@ -148,21 +210,21 @@ def _remove_duplicate_routing_rules(app):
     https://stackoverflow.com/a/24137773
     """
     url_map = app.url_map
-    to_remove = []
-    rules = {}
-    for rule in url_map.iter_rules():
-        rule_name = str(rule)
-        # If a rule with the same name has already been encountered, add it to
-        # the list of rules to be removed and keep this (unless later comes
-        # another with the same name).
-        if rule_name in rules:
-            to_remove.append(rules[rule_name])
-        rules[rule_name] = rule
-    for rule in to_remove:
-        # We need to remove the rule from both url.map._rules and and
-        # url_map._rules_by_endpoint
-        url_map._rules.remove(rule)
-        url_map._rules_by_endpoint[rule.endpoint].remove(rule)
-    # Update the rule map
-    url_map._remap = True
-    url_map.update()
+    dupls = _find_key_duplicates(url_map.iter_rules())
+    if dupls:
+        for rule_name, rules in dupls.items():
+            # Remove all the rules for a route except the last one
+            for rule in rules[:-1]:
+                # We need to remove the rule from both url.map._rules
+                # and and url_map._rules_by_endpoint
+                url_map._rules.remove(rule)
+                url_map._rules_by_endpoint[rule.endpoint].remove(rule)
+            if "warn" in pluginlibconf.HANDLE_DUPLICATE_ROUTES:
+                print("Warning: Endpoint", rules[-1].endpoint,
+                      "overrides endpoints defined earlier for routing rule \""
+                      + rule_name + "\":",
+                      ", ".join(rule.endpoint for rule in rules[:-1]),
+                      file=sys.stderr)
+        # Update the rule map
+        url_map._remap = True
+        url_map.update()

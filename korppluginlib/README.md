@@ -56,6 +56,21 @@ the following configuration variables are recognized:
       configurations, and the view functions handling a route or
       callback methods registered for a hook point
 
+- `HANDLE_DUPLICATE_ROUTES`: What to do with duplicate endpoints for a
+  routing rule, added by plugins:
+    - `"override"`: Use the endpoint defined last without printing
+      anything, allowing a plugin to override an endpoint defined in
+      `korp.py`; if multiple plugins define an endpoint for the same
+      route, the last one is used.
+    - `"override,warn"` (default): Use the endpoint defined last and
+      print a warning to stderr.
+    - `"ignore"`: Use the endpoint defined first (Flask default
+      behaviour) without printing anything.
+    - `"warn"`: Use the endpoint defined first (Flask default) and
+      print a warning message to stderr.
+    - `"error"`: Print an error message to stderr and raise a
+      `ValueError`.
+
 Alternatively, the configuration variables may be specified in the
 top-level module `config` within the dictionary or namespace object
 `PLUGINLIB_CONFIG`; for example:
@@ -202,22 +217,13 @@ defined by decorating them with
 
 ### Limitations
 
-The current implementation has at least the following limitations:
-
-- An endpoint (the view function) defined in a plugin cannot currently
-  override an existing view function for the same endpoint defined in
-  `korp.py` or in a plugin loaded earlier (listed earlier in
-  `config.PLUGINS`). (But if the need arises, this restriction can
-  probably be lifted or relaxed, so that a view function could declare
-  that it overrides another view function.)
-
-- It is also not possible to modify the functionality of an existing
-  endpoint, for example, by calling the existing view function from
-  the function defined in a plugin, possibly modifying the arguments
-  or the result. However, in many cases, a similar effect can be
-  achieved by defining the appropriate callback methods for hook
-  points `filter_args` and `filter_result`; see
-  [below](#filter-hook-points).
+The current implementation has at least the limitations that it is not
+possible to modify the functionality of an existing endpoint, for
+example, by calling the existing view function from the function
+defined in a plugin, possibly modifying the arguments or the result.
+However, in many cases, a similar effect can be achieved by defining
+the appropriate callback methods for hook points `filter_args` and
+`filter_result`; see [below](#filter-hook-points).
 
 
 ## Callback plugins
