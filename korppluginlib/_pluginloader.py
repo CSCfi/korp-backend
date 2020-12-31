@@ -109,7 +109,14 @@ def load(app, plugin_list, decorators=None, app_globals=None):
 
 
 def _find_plugin(plugin):
-    """ """
+    """Return the imported module for plugin or raise ModuleNotFoundError.
+
+    Try to import module plugin from the packages listed in
+    pluginlibconf.PACKAGES and return the first one found. If no
+    module of the name was found, raise ModuleNotFoundError with a
+    message showing the tried (fully-qualified) module names and
+    directories.
+    """
     module = None
     not_found = []
     for pkg in pluginlibconf.PACKAGES:
