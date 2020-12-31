@@ -15,8 +15,10 @@ completions for a prefix.
 import korppluginlib
 
 
-# The name of the MySQL database and table prefix
-DBTABLE = "lemgram_index"
+pluginconf = korppluginlib.get_plugin_config(
+    # The name of the lemgram index table in the MySQL database
+    LEMGRAM_DBTABLE = "lemgram_index",
+)
 
 
 plugin = korppluginlib.Blueprint("lemgramcompleter_plugin", __name__)
@@ -120,8 +122,8 @@ def _retrieve_lemgrams(cursor, wf, modcase, is_any_prefix, result, result_set):
 
 
 def _make_lemgram_query_part(pattern, corpora, limit):
-    return ("(SELECT DISTINCT lemgram FROM lemgram_index"
-            " WHERE lemgram LIKE '" + pattern + "'"
+    return ("(SELECT DISTINCT lemgram FROM `" + pluginconf.LEMGRAM_DBTABLE
+            + "` WHERE lemgram LIKE '" + pattern + "'"
             + (" AND CORPUS IN (" + ','.join(["'" + corp + "'"
                                              for corp in corpora]) + ")"
                if corpora else '')
