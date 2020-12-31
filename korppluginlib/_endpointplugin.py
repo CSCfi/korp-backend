@@ -5,7 +5,8 @@ Module korppluginlib._endpointplugin
 Module containing code for WSGI endpoint plugins
 
 In plugin modules, functions decorated with the route method of an instance of
-korppluginlib.Blueprint define new WSGI endpoints.
+korppluginlib.KorpEndpointPlugin (a subclass of flask.Blueprint) define new
+WSGI endpoints.
 
 This module is intended to be internal to the package korppluginlib; the names
 intended to be visible outside the package are imported at the package level.
@@ -20,7 +21,7 @@ import flask
 from ._util import print_verbose
 
 
-class Blueprint(flask.Blueprint):
+class KorpEndpointPlugin(flask.Blueprint):
 
     """Blueprint keeping track of instances and modifying route() method.
 
@@ -74,7 +75,8 @@ class Blueprint(flask.Blueprint):
                         self._endpoint_decorators[decorator_name](wrapper),
                         func)
             wrapped_func = functools.update_wrapper(
-                super(Blueprint, self).route(rule, **options)(wrapper), func)
+                super(KorpEndpointPlugin, self).route(rule, **options)(wrapper),
+                func)
             print_verbose(
                 2, ("  route \"" + rule + "\": endpoint " + self.name + "."
                     + func.__qualname__))
@@ -83,7 +85,7 @@ class Blueprint(flask.Blueprint):
 
     @classmethod
     def register_all(cls, app):
-        """Register all Blueprint instances with the Flask application app."""
+        """Register all KorpEndpointPlugin instances with the Flask app."""
         for bp in cls._instances:
             app.register_blueprint(bp)
 

@@ -146,14 +146,15 @@ loaded.
 ### Implementing a new WSGI endpoint
 
 To implement a new WSGI endpoint, you first create an instance of
-`korppluginlib.Blueprint` (a subclass of `flask.Blueprint`) as follows:
+`korppluginlib.KorpEndpointPlugin` (a subclass of `flask.Blueprint`)
+as follows:
 
-    test_plugin = korppluginlib.Blueprint()
+    test_plugin = korppluginlib.KorpEndpointPlugin()
 
 You can also specify a name for the plugin, overriding the default
 that is the calling module name `__name__`:
 
-    test_plugin = korppluginlib.Blueprint("test_plugin")
+    test_plugin = korppluginlib.KorpEndpointPlugin("test_plugin")
 
 You may also pass other arguments recognized by `flask.Blueprint`.
 
@@ -184,10 +185,10 @@ in `extra_decorators` include only `prevent_timeout`, as the endpoints
 defined in this way are always decorated with `main_handler` as the
 topmost decorator. However, additional decorator functions can be
 defined by decorating them with
-`korppluginlib.Blueprint.endpoint_decorator`; for example:
+`korppluginlib.KorpEndpointPlugin.endpoint_decorator`; for example:
 
-    # test_plugin is an instance of korppluginlib.Blueprint, so this is
-    # equivalent to @korppluginlib.Blueprint.endpoint_decorator
+    # test_plugin is an instance of korppluginlib.KorpEndpointPlugin, so this
+    # is equivalent to @korppluginlib.KorpEndpointPlugin.endpoint_decorator
     @test_plugin.endpoint_decorator
     def test_decor(generator):
         """Add to the result an extra layer with text_decor and payload."""
