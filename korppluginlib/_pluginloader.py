@@ -106,6 +106,7 @@ def load(app, plugin_list, decorators=None, app_globals=None):
                 raise
     sys.path = saved_sys_path
     KorpEndpointPlugin.register_all(app)
+    _remove_duplicate_routing_rules(app)
 
 
 def _find_plugin(plugin):
@@ -132,3 +133,36 @@ def _find_plugin(plugin):
     raise ModuleNotFoundError(
         "No module named " + not_found_str + " in any of "
         + ", ".join((dir or ".") for dir in sys.path))
+
+
+def _remove_duplicate_routing_rules(app):
+    """Remove duplicate routing rules from app, keeping only the last one.
+
+    If a route has duplicate rules, keep only the last one (most
+    recently added?) of them, so that a plugin can override an
+    endpoint.
+
+    This requires using non-public attributes in Flask objects
+    (app.url_map._rules, ._rules_by_endpoint and ._remap), so this may
+    break if they are changed; see
+    https://stackoverflow.com/a/24137773
+    """
+    url_map = app.url_map
+    to_remove = []
+    rules = {}
+    for rule in url_map.iter_rules():
+        rule_name = str(rule)
+        # If a rule with the same name has already been encountered, add it to
+        # the list of rules to be removed and keep this (unless later comes
+        # another with the same name).
+        if rule_name in rules:
+            to_remove.append(rules[rule_name])
+        rules[rule_name] = rule
+    for rule in to_remove:
+        # We need to remove the rule from both url.map._rules and and
+        # url_map._rules_by_endpoint
+        url_map._rules.remove(rule)
+        url_map._rules_by_endpoint[rule.endpoint].remove(rule)
+    # Update the rule map
+    url_map._remap = True
+    url_map.update()
