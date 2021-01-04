@@ -215,17 +215,6 @@ defined by decorating them with
         return decorated
 
 
-### Limitations
-
-The current implementation has at least the limitations that it is not
-possible to modify the functionality of an existing endpoint, for
-example, by calling the existing view function from the function
-defined in a plugin, possibly modifying the arguments or the result.
-However, in many cases, a similar effect can be achieved by defining
-the appropriate callback methods for hook points `filter_args` and
-`filter_result`; see [below](#filter-hook-points).
-
-
 ## Callback plugins
 
 Callbacks to be called at specific *plugin hook points* in `korp.py`
@@ -440,3 +429,50 @@ The values of selected global variables in the main application module
 `app`, `mysql` and `KORP_VERSION`, which can be accessed as
 `korppluginlib.app_globals.`_name_. In this way, for example, a
 plugin can access the Korp MySQL database.
+
+
+## Limitations and deficiencies
+
+The current implementation has at least the following limitations and
+deficiencies, which might be subjects for future development, if
+needed:
+
+- In endpoint plugins, it is not possible to modify the functionality
+  of an existing endpoint, for example, by calling an existing view
+  function from a function defined in a plugin, possibly modifying the
+  arguments or the result. However, in many cases, a similar effect
+  can be achieved by defining the appropriate callback methods for
+  hook points `filter_args` and `filter_result`; see
+  [above](#filter-hook-points).
+
+- The order of calling the callbacks for a hook point is determined by
+  the order of plugins listed in `config.PLUGINS`. The plugins
+  themselves cannot specify that they should be loaded before or after
+  another plugin. Moreover, in some cases, it might make sense to call
+  one callback of a plugin before those of other plugins (such as
+  `filter_args`) and another after those of others (such as
+  `filter_result`). What would be a sufficiently flexible way to allow
+  more control of callback order?
+
+- A plugin cannot require that another plugin should have been loaded
+  nor can it request other plugins to be loaded, at least not easily.
+  However, it might not be difficult to add a facility in which
+  `korppluginlib.load` would check if a plugin module just imported
+  had specified that it requires certain other plugins and call itself
+  recursively to load them. They would be loaded only after the
+  requiring plugin, however.
+
+- Plugins cannot be chosen based on their properties, such as their
+  version (for example, load the most recent version of a plugin
+  available on the search path) or what endpoints they provide.
+
+- Unlike callback methods, endpoint view functions are not methods in
+  a class, as at least currently, `main_handler` and `prevent_timeout`
+  cannot decorate an instance method. Possible ideas for solving that:
+  https://stackoverflow.com/a/1288936,
+  https://stackoverflow.com/a/36067926
+
+- Plugins are not loaded on demand. However, loading on demand would
+  probably make sense only for endpoint plugins, which could be loaded
+  when an endpoint is accessed. Even then, the advantage of on-demand
+  loading might not be large.
