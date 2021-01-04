@@ -46,6 +46,30 @@ def test(args):
     yield {pluginconf.ARGS_NAME: args}
 
 
+@test_plugin.route("/query", extra_decorators=["test_decor"])
+def query(args):
+    """Yield arguments wrapped in ARGS_NAME."""
+    yield {pluginconf.ARGS_NAME: args}
+
+
+@test_plugin.route("/query", extra_decorators=["test_decor"])
+def query2(args):
+    """Yield arguments wrapped in ARGS_NAME."""
+    yield {pluginconf.ARGS_NAME: args}
+
+
+@test_plugin.route("/count", extra_decorators=["test_decor"])
+def count(args):
+    """Yield arguments wrapped in ARGS_NAME."""
+    yield {pluginconf.ARGS_NAME: args}
+
+
+@test_plugin.route("/count", extra_decorators=["test_decor"])
+def count2(args):
+    """Yield arguments wrapped in ARGS_NAME."""
+    yield {pluginconf.ARGS_NAME: args}
+
+
 class Test1b(korppluginlib.KorpCallbackPlugin):
 
     def filter_result(self, d, request):
