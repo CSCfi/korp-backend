@@ -11,7 +11,7 @@ instance methods, the instances are singletons. Registering plugin callbacks
 or inspired by http://martyalchin.com/2008/jan/10/simple-plugin-framework/
 
 WSGI endpoints are functions decorated with the route method of an instance of
-korppluginlib.Blueprint.
+korppluginlib.KorpEndpointPlugin.
 """
 
 
@@ -22,6 +22,6 @@ korppluginlib.Blueprint.
 
 # The following names are visible to the code importing korppluginlib
 from ._configutil import get_plugin_config, plugin_configs
-from ._endpointplugin import Blueprint
+from ._endpointplugin import KorpEndpointPlugin
 from ._callbackplugin import KorpCallbackPlugin, KorpCallbackPluginCaller
 from ._pluginloader import load, app_globals, loaded_plugins
