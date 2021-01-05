@@ -451,8 +451,12 @@ needed:
   another plugin. Moreover, in some cases, it might make sense to call
   one callback of a plugin before those of other plugins (such as
   `filter_args`) and another after those of others (such as
-  `filter_result`). What would be a sufficiently flexible way to allow
-  more control of callback order?
+  `filter_result`), in a way wrapping the others (from previously
+  loaded plugins). What would be a sufficiently flexible way to allow
+  more control of callback order? In
+  [Flask-Plugins](https://flask-plugins.readthedocs.io/en/master/),
+  one can specify that a callback (event listener) is called before
+  the previously registered ones instead of after them (the default).
 
 - A plugin cannot require that another plugin should have been loaded
   nor can it request other plugins to be loaded, at least not easily.
@@ -466,6 +470,16 @@ needed:
   version (for example, load the most recent version of a plugin
   available on the search path) or what endpoints they provide.
 
+  One option for implementing such functionality would be to have a
+  separate data file in the plugin (package) directory containing such
+  information that the plugin loader would inspect before actually
+  importing the module, as in
+  [Flask-Plugins](https://flask-plugins.readthedocs.io/en/master/).
+  The data file could be JSON (as in Flask-Plugins) or perhaps plain
+  Python. However, that would probably require that the plugins are
+  Python (sub-)packages, not modules directly within the `korpplugins`
+  namespace package (or whatever is configured).
+
 - Unlike callback methods, endpoint view functions are not methods in
   a class, as at least currently, `main_handler` and `prevent_timeout`
   cannot decorate an instance method. Possible ideas for solving that:
@@ -476,3 +490,48 @@ needed:
   probably make sense only for endpoint plugins, which could be loaded
   when an endpoint is accessed. Even then, the advantage of on-demand
   loading might not be large.
+
+
+## Influences and alternatives
+
+Many Python plugin frameworks or libraries exist, but they did not
+appear suitable for Korp plugins as such. In particular, we wished to
+have both callback plugins and endpoint plugins.
+
+
+### Influcences
+
+Using a metaclass for registering callback plugins in `korppluginlib`
+was inspired by and partially adapted from Marty Alchin’s [A Simple
+Plugin
+Framework](http://martyalchin.com/2008/jan/10/simple-plugin-framework/).
+
+The terms used in conjunction with callback plugins were partially
+influenced by the terminology for [WordPress
+plugins](https://developer.wordpress.org/plugins/hooks/).
+
+The [Flask-Plugins](https://flask-plugins.readthedocs.io/en/master/)
+Flask extension might have been a natural choice, as Korp is a Flask
+application, but it was not immediately obvious if it could have been
+used to implement new endpoints. Moreover, for callback (event)
+plugins, it would have had to be extended to support passing the
+result from one plugin callback as the input of another.
+
+Using Flask Blueprints for endpoint plugins was hinted at by Martin
+Hammarstedt.
+
+
+### Other Python plugin frameworks and libraries
+
+- [PluginBase](https://github.com/mitsuhiko/pluginbase)
+
+- [stevedore](https://docs.openstack.org/stevedore/latest/) (uses
+  [Setuptools](https://github.com/pypa/setuptools))
+
+- [Pluginlib](https://pluginlib.readthedocs.io/en/stable/)
+
+- [Ideas for a minimal Python plugin architecture on
+  StackOverflow](https://stackoverflow.com/questions/932069/building-a-minimal-plugin-architecture-in-python)
+
+- [A list of Python plugin frameworks from
+  2009](http://wehart.blogspot.com/2009/01/python-plugin-frameworks.html)
