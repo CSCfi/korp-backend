@@ -5,7 +5,8 @@ Module korppluginlib._endpointplugin
 Module containing code for WSGI endpoint plugins
 
 In plugin modules, functions decorated with the route method of an instance of
-korppluginlib.Blueprint define new WSGI endpoints.
+korppluginlib.KorpEndpointPlugin (a subclass of flask.Blueprint) define new
+WSGI endpoints.
 
 This module is intended to be internal to the package korppluginlib; the names
 intended to be visible outside the package are imported at the package level.
@@ -13,20 +14,42 @@ intended to be visible outside the package are imported at the package level.
 
 
 import functools
+import inspect
 
 import flask
 
 from ._util import print_verbose
 
 
-class Blueprint(flask.Blueprint):
+class KorpEndpointPlugin(flask.Blueprint):
 
-    """Blueprint keeping track of instances and modifying route() method"""
+    """Blueprint keeping track of instances and modifying route() method.
+
+    The constructor may be called with name and import_name as None,
+    defaulting to the module name. The class also adds class methods for
+    registering all instances and for specifying a function to be used
+    as an endpoint decorator.
+    """
 
     # Class instances
     _instances = set()
     # Available endpoint decorators (name: function)
     _endpoint_decorators = {}
+
+    def __init__(self, name=None, import_name=None, *args, **kwargs):
+        """Initialize with name and import_name defaulting to module name.
+
+        If name is None, set it to import_name. If import_name is
+        None, set it to the name of the calling module.
+        """
+        if import_name is None:
+            # Use the facilities in the module inspect to avoid having to pass
+            # __name__ as an argument (https://stackoverflow.com/a/1095621)
+            calling_module = inspect.getmodule(inspect.stack()[1][0])
+            import_name = calling_module.__name__
+        if name is None:
+            name = import_name
+        super().__init__(name, import_name, *args, **kwargs)
 
     def route(self, rule, *, extra_decorators=None, **options):
         """Route with rule, adding main_handler and extra_decorators.
@@ -52,15 +75,17 @@ class Blueprint(flask.Blueprint):
                         self._endpoint_decorators[decorator_name](wrapper),
                         func)
             wrapped_func = functools.update_wrapper(
-                super(Blueprint, self).route(rule, **options)(wrapper), func)
+                super(KorpEndpointPlugin, self).route(rule, **options)(wrapper),
+                func)
             print_verbose(
-                2, "  route \"" + rule + "\": endpoint " + func.__qualname__)
+                2, ("  route \"" + rule + "\": endpoint " + self.name + "."
+                    + func.__qualname__))
             return wrapped_func
         return decorator
 
     @classmethod
     def register_all(cls, app):
-        """Register all Blueprint instances with the Flask application app."""
+        """Register all KorpEndpointPlugin instances with the Flask app."""
         for bp in cls._instances:
             app.register_blueprint(bp)
 
