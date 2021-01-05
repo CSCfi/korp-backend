@@ -43,7 +43,7 @@ pluginconf = korppluginlib.get_plugin_config(
     # Log message format string using the percent formatting for
     # logging.Formatter.
     LOG_FORMAT = (
-        "[korp.py %(levelname)s %(process)d:%(request)d @ %(asctime)s]"
+        "[korp.py %(levelname)s %(process)d:%(starttime_us)d @ %(asctime)s]"
         " %(message)s"),
     # Categories of information to be logged: all available are listed
     LOG_CATEGORIES = [
@@ -131,14 +131,22 @@ class KorpLogger(korppluginlib.KorpCallbackPlugin):
 
     # Helper methods
 
-    def _init_logging(self, request, args):
+    def _init_logging(self, request, starttime, args):
         """Initialize logging; called once per request (in enter_handler)"""
         request_id = KorpLogger._get_request_id(request)
         loglevel = (logging.DEBUG if (pluginconf.LOG_ENABLE_DEBUG_PARAM
                                       and "debug" in args)
                     else pluginconf.LOG_LEVEL)
         logger = LevelLoggerAdapter(
-            self._logger, {"request": request_id}, loglevel)
+            self._logger,
+            {
+                # Additional format keys and their values for log messages
+                "request": request_id,
+                "starttime": starttime,
+                "starttime_ms": int(starttime * 1000),
+                "starttime_us": int(starttime * 1e6),
+            },
+            loglevel)
         self._loggers[request_id] = logger
         return logger
 
@@ -174,7 +182,7 @@ class KorpLogger(korppluginlib.KorpCallbackPlugin):
 
     def enter_handler(self, args, starttime, request):
         """Initialize logging at entering Korp and log basic information"""
-        logger = self._init_logging(request, args)
+        logger = self._init_logging(request, starttime, args)
         env = request.environ
         self._log(logger.info, "userinfo", "IP", request.remote_addr)
         self._log(logger.info, "userinfo", "User-agent", request.user_agent)

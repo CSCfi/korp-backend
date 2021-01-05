@@ -31,9 +31,17 @@ LOG_ENABLE_DEBUG_PARAM = True
 
 # Log message format string using the percent formatting for logging.Formatter.
 # In addition to the standard keys, the format may (and typically should)
-# contain "request" (an integer), which identifies the request object
-# (id(request._get_current_object())). %(message)s contains the actual message
-# of the form "Item: Value".
+# contain at least one of the following, to identify the request uniquely
+# together with %(process)d:
+# - "request" (int), which identifies the request object
+#   (id(request._get_current_object())).
+# - "starttime" (float): start time recorded for the request as seconds since
+#   the epoch
+# - "starttime_ms" (int): start time recorded for the request as milliseconds
+#   since the epoch
+# - "starttime_us" (int): start time recorded for the request as microseconds
+#   since the epoch
+# %(message)s contains the actual message of the form "Item: Value".
 LOG_FORMAT = ("[korp.py %(levelname)s %(process)d:%(request)d @ %(asctime)s]"
               " %(message)s")
 
