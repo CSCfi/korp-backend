@@ -30,3 +30,17 @@ HANDLE_NOT_FOUND = "warn"
 # plugins: 0 = nothing, 1 = plugin names only, 2 = plugin names and
 # plugin function names
 LOAD_VERBOSITY = 1
+
+# HANDLE_DUPLICATE_ROUTES: What to do with duplicate endpoints for a
+# routing rule, added by plugins:
+# - "override": use the endpoint defined last without printing anything,
+#   allowing a plugin to override a built-in endpoint; if multiple
+#   plugins define an endpoint for the same route, the last one is used
+# - "override,warn": use the endpoint defined last and print a warning
+#   to stderr
+# - "ignore": use the endpoint defined first (Flask default behaviour)
+#   without printing anything
+# - "warn": use the endpoint defined first (Flask default) and print a
+#   warning message to stderr
+# - "error": print an error message to stderr and raise ValueError
+HANDLE_DUPLICATE_ROUTES = "override,warn"

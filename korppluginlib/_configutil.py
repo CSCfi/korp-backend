@@ -37,6 +37,9 @@ _conf_defaults = SimpleNamespace(
     LOAD_VERBOSITY = 1,
     # Warn if a plugin is not found
     HANDLE_NOT_FOUND = "warn",
+    # The last endpoint for a route overrides the preceding ones; if that
+    # happens, print a warning
+    HANDLE_DUPLICATE_ROUTES = "override,warn"
 )
 
 
