@@ -21,7 +21,7 @@ pluginconf = korppluginlib.get_plugin_config(
 )
 
 
-plugin = korppluginlib.Blueprint("lemgramcompleter_plugin", __name__)
+plugin = korppluginlib.KorpEndpointPlugin()
 
 
 @plugin.route("/lemgram_complete", extra_decorators=["prevent_timeout"])
