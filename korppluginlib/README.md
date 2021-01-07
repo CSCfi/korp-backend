@@ -254,9 +254,18 @@ the following:
   `dict` `args` to any endpoint (view function) and returns the
   modified value.
 
-- `filter_result(self, result, request)`: Modifies the result
-  `dict` `result` returned by any endpoint (view function) and returns
-  the modified value.
+- `filter_result(self, result, request)`: Modifies the result `dict`
+  `result` returned by any endpoint (view function) and returns the
+  modified value.
+
+  *Note* that when the arguments (query parameters) of the endpoint
+  contain `incremental=true`, `filter_result` is called separately for
+  each incremental part of the result, typically `progress_corpora`,
+  `progress_`_num_ (where _num_ is the number of corpus), the actual
+  content body, and possibly `hits`, `corpus_hits`, `corpus_order` and
+  `query_data` as a single part. (Currently, `filter_result` is *not*
+  called for `time`.) Thus, you should not assume that the value of
+  the `result` argument always contains the content body.
 
 - `filter_cqp_input(self, cqp, request)`: Modifies the raw CQP
   input string `cqp`, typically consisting of multiple CQP commands,
