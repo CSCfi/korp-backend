@@ -3419,16 +3419,21 @@ setup_cache()
 
 
 # Load plugins
-korppluginlib.load(app, config.PLUGINS, [main_handler, prevent_timeout],
-                 dict((name, globals().get(name))
-                      for name in [
-                          # Allow plugins to access (indirectly) the values of
-                          # these global variables
-                          "app",
-                          "mysql",
-                          "KORP_VERSION",
-                      ]
-                  ))
+korppluginlib.load(
+    app, config.PLUGINS,
+    [
+        main_handler,
+        prevent_timeout,
+    ],
+    dict((name, globals().get(name))
+         for name in [
+             # Allow plugins to access (indirectly) the values of
+             # these global variables
+             "app",
+             "mysql",
+             "KORP_VERSION",
+         ]
+     ))
 
 
 if __name__ == "__main__":
