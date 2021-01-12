@@ -188,18 +188,53 @@ as the keyword argument `extra_decorators` and other options of
 would be specified as decorators (topmost first), that is, in the
 reverse order of application. The generator function takes a single
 `dict` argument containing the parameters of the call and yields the
-result. For example:
+result.
 
 A single plugin module can define multiple new endpoints.
+
+
+### Non-JSON endpoints
+
+Even though Korp endpoints should in general return JSON data, it may
+be desirable to implement endpoints returning another type of data,
+for example, if the endpoint generates a file for downloading. That
+can be accomplished by adding `use_custom_headers` to
+`extra_decorators`. An endpoint using `use_custom_headers` should
+yield a `dict` with the following keys recognized:
+
+- `"content"`: the actual content;
+- `"mimetype"` (default: `"text/html"`): possible MIME type; and
+- `"headers"`: possible other headers as a list of pairs (_header_,
+  _value_).
+
+For example, the following endpoint returns an attachment for a
+plain-text file listing the arguments to the endpoint, named with the
+value of `filename` (`args.txt` if not specified):
+
+    @test_plugin.route("/text", extra_decorators=["use_custom_headers"])
+    def textfile(args):
+        """Make downloadable plain-text file of args."""
+        yield {
+            "content": "\n".join(arg + "=" + repr(args[arg]) for arg in args),
+            "mimetype": "text/plain",
+            "headers": [
+                ("Content-Disposition",
+                 "attachment; filename=\"" + args.get("filename", "args.txt")
+                 + "\"")]
+        }
+
+Note that neither the endpoint argument `incremental=true` nor the
+decorator `prevent_timeout` has any practical effect on endpoints with
+`use_custom_headers`.
 
 
 ### Defining additional endpoint decorators
 
 By default, the endpoint decorator functions whose names can be listed
-in `extra_decorators` include only `prevent_timeout`, as the endpoints
-defined in this way are always decorated with `main_handler` as the
-topmost decorator. However, additional decorator functions can be
-defined by decorating them with
+in `extra_decorators` include only `prevent_timeout` and
+`use_custom_headers`, as the endpoints defined in this way are always
+decorated with `main_handler` as the topmost decorator. However,
+additional decorator functions can be defined by decorating them with
 `korppluginlib.KorpEndpointPlugin.endpoint_decorator`; for example:
 
     # test_plugin is an instance of korppluginlib.KorpEndpointPlugin, so this

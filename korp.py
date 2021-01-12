@@ -3479,6 +3479,7 @@ korppluginlib.load(
     [
         main_handler,
         prevent_timeout,
+        use_custom_headers,
     ],
     dict((name, globals().get(name))
          for name in [
