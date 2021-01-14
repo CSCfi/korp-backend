@@ -382,6 +382,10 @@ def info(args):
 
     result = {"version": KORP_VERSION, "cqp_version": version, "corpora": list(corpora), "protected_corpora": protected}
 
+    if config.INFO_SHOW_PLUGINS:
+        result["plugins"] = korppluginlib.get_loaded_plugins(
+            names_only=(config.INFO_SHOW_PLUGINS == "names"))
+
     if args["cache"]:
         with mc_pool.reserve() as mc:
             added = mc.add("%s:info" % cache_prefix(), result)

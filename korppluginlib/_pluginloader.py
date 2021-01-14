@@ -228,3 +228,22 @@ def _remove_duplicate_routing_rules(app):
         # Update the rule map
         url_map._remap = True
         url_map.update()
+
+
+def get_loaded_plugins(names_only=False):
+    """Return a list of loaded plugins, with PLUGIN_INFO unless names_only.
+
+    If names_only, return a list of plugin names (as specified in
+    PLUGINS). Otherwise, return a list of dicts with key "name" as the
+    load name of the plugin and "info" the PLUGIN_INFO defined in the
+    plugin, excluding key "module" added in load().
+    """
+    if names_only:
+        return list(loaded_plugins.keys())
+    else:
+        return [
+            {"name": name,
+             "info": dict((key, val)
+                          for key, val in info.items() if key != "module")}
+            for name, info in loaded_plugins.items()
+        ]

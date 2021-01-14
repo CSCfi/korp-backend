@@ -22,12 +22,27 @@ same plugin module.
 ## Configuration
 
 
-### Configuring `korppluginlib`
+### Configuring Korp for plugins
 
-The names of plugins (modules or subpackages) to be used are defined
-in the list `PLUGINS` in `config.py` (that is, Korp’s top-level module
-`config`). If a plugin module is not found, a warning is output to the
-standard output.
+Korp’s `config.py` (that is, top-level module `config`) contains the
+following plugin-related variables:
+
+- `PLUGINS`: A list of names of plugins (modules or subpackages) to be
+  used, in the order they are to be loaded. If a plugin module is not
+  found, a warning is output to the standard output.
+
+- `INFO_SHOW_PLUGINS`: What information on loaded plugins the response
+  of the `/info` command should contain:
+  - `None` or `""`: nothing
+  - `"names"`: `plugins` as a list of names of plugins as specified in
+    `PLUGINS`
+  - `"info"`: `plugins` as a list of objects with `name` as the name
+    of the plugin as specified in `PLUGINS` and `info` as the
+    information specified in the `PLUGIN_INFO` dictionary defined in
+    the plugin module (see [below](#plugin-information)
+
+
+### Configuring `korppluginlib`
 
 The configuration of `korppluginlib` is in the module
 `korppluginlib.config` (file `korppluginlib/config.py`). Currently,
