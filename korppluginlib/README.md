@@ -2,6 +2,36 @@
 # `korppluginlib`: Korp backend plugin framework (API) (proposal)
 
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+## Table of contents
+
+- [Overview](#overview)
+- [Configuration](#configuration)
+  - [Configuring Korp for plugins](#configuring-korp-for-plugins)
+  - [Configuring `korppluginlib`](#configuring-korppluginlib)
+  - [Configuring individual plugins](#configuring-individual-plugins)
+- [Plugin information](#plugin-information)
+- [Endpoint plugins](#endpoint-plugins)
+  - [Implementing a new WSGI endpoint](#implementing-a-new-wsgi-endpoint)
+  - [Non-JSON endpoints](#non-json-endpoints)
+  - [Defining additional endpoint decorators](#defining-additional-endpoint-decorators)
+- [Callback plugins](#callback-plugins)
+  - [Filter hook points](#filter-hook-points)
+  - [Event hook points](#event-hook-points)
+  - [Callback plugin example](#callback-plugin-example)
+  - [Notes on implementing a callback plugin](#notes-on-implementing-a-callback-plugin)
+  - [Keeping request-specific state](#keeping-request-specific-state)
+  - [Defining hook points in plugins](#defining-hook-points-in-plugins)
+- [Accessing main application module global variables in plugins](#accessing-main-application-module-global-variables-in-plugins)
+- [Limitations and deficiencies](#limitations-and-deficiencies)
+- [Influences and alternatives](#influences-and-alternatives)
+  - [Influcences](#influcences)
+  - [Other Python plugin frameworks and libraries](#other-python-plugin-frameworks-and-libraries)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
+
 ## Overview
 
 The Korp backend supports two kinds of plugins:
