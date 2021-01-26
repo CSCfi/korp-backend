@@ -41,12 +41,15 @@ def lemgram_complete(args):
     - format (optional): if "old", use an old, Karp-like format, instead
       of the simpler default
     """
+    appglob = korppluginlib.app_globals
+    appglob.assert_key("wf", args, r"", True)
+    appglob.assert_key("corpus", args, appglob.IS_IDENT)
+    appglob.assert_key("limit", args, appglob.IS_NUMBER)
+    appglob.assert_key("format", args, r"old")
     wf = args.get("wf")
-    corpora = args.get("corpus")
+    corpora = appglob.parse_corpora(args)
     limit = int(args.get("limit", 10))
     fmt = args.get("format")
-    if corpora:
-        corpora = corpora.split(',')
     result = _get_lemgrams(wf, corpora, limit)
     if fmt == "old":
         result = _encode_lemgram_result(result)
