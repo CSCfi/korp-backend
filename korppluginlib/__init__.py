@@ -24,4 +24,4 @@ korppluginlib.KorpEndpointPlugin.
 from ._configutil import get_plugin_config, plugin_configs
 from ._endpointplugin import KorpEndpointPlugin
 from ._callbackplugin import KorpCallbackPlugin, KorpCallbackPluginCaller
-from ._pluginloader import load, app_globals, loaded_plugins
+from ._pluginloader import load, app_globals, loaded_plugins, get_loaded_plugins
