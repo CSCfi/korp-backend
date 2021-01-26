@@ -123,7 +123,9 @@ def _find_plugin(plugin):
     for pkg in pluginlibconf.PACKAGES:
         module_name = pkg + "." + plugin if pkg else plugin
         try:
-            return importlib.import_module(module_name)
+            module = importlib.import_module(module_name)
+            _set_plugin_info(module)
+            return module
         except ModuleNotFoundError as e:
             not_found.append("'" + module_name + "'")
     if len(not_found) == 1:
@@ -133,6 +135,33 @@ def _find_plugin(plugin):
     raise ModuleNotFoundError(
         "No module named " + not_found_str + " in any of "
         + ", ".join((dir or ".") for dir in sys.path))
+
+
+def _set_plugin_info(module):
+    """Set or update module.PLUGIN_INFO from module module.info.
+
+    Set or update the dictionary module.PLUGIN_INFO from the variables
+    set in the module module.info (if the plugin module is a package)
+    or module_info (if the plugin module is not a package), if such an
+    info module exists. The variable names are lower-cased to make
+    PLUGIN_INFO keys. The values in module.PLUGIN_INFO override those
+    retrieved from the info module.
+    """
+    module_name = module.__name__
+    # Plugin module is a package if module.__name__ == module.__package__
+    info_module_name = module_name + (
+        ".info" if module_name == module.__package__ else "_info")
+    try:
+        info_module = importlib.import_module(info_module_name)
+        # Get all names and their values from the module except for names
+        # beginning with a double underscore
+        info = dict((name.lower(), getattr(info_module, name))
+                    for name in dir(info_module) if not name.startswith("__"))
+    except ModuleNotFoundError:
+        info = {}
+    # Values in module.PLUGIN_INFO override those in the info module
+    info.update(getattr(module, "PLUGIN_INFO", {}))
+    setattr(module, "PLUGIN_INFO", info)
 
 
 def _handle_duplicate_routing_rules(app):

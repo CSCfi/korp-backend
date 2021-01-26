@@ -180,20 +180,43 @@ is always a `SimpleNamespace`.
 ## Plugin information
 
 A plugin module or package may define `dict` `PLUGIN_INFO` containing
-pieces of information on the plugin. The values of keys `"name"`,
-`"version"` and `"date"` are shown in the plugin load message if
-defined (and if `LOAD_VERBOSITY` is at least 1), but others can be
-freely added as needed. For example:
+pieces of information on the plugin. Alternatively, a plugin package
+may contain module named `info` and a non-package plugin module
+_plugin_ may be accompanied with a module named _plugin_`_info`
+containing variable definitions that are added to `PLUGIN_INFO` with
+the lower-cased variable name as the key. (As their values are
+constant, it is suggested that the variable names in the `info` module
+are written in upper case.) If both `PLUGIN_INFO` and an `info` module
+contain a value for the same key, the value in `PLUGIN_INFO` takes
+precedence.
+
+Plugin information should contain values for at least the keys
+`"name"`, `"version"` and `"date"`, and preferably also
+`"description"` and possibly `"author"`. Others may be freely added as
+needed. The first three are shown in the plugin load message if
+defined (and if `LOAD_VERBOSITY` is at least 1). For example:
 
     PLUGIN_INFO = {
-        "name": "korppluginlib test plugin 1",
+        "name": "korppluginlib_test_1",
         "version": "0.1",
         "date": "2020-12-10",
+        "description": "korppluginlib test plugin 1",
+        "author": "FIN-CLARIN",
+        "author_email": "fin-clarin at helsinki dot fi",
     }
 
+Or equivalently in an `info` module:
+
+    NAME = "korppluginlib_test_1"
+    VERSION = "0.1"
+    DATE = "2020-12-10"
+    DESCRIPTION = "korppluginlib test plugin 1"
+    AUTHOR = "FIN-CLARIN"
+    AUTHOR_EMAIL = "fin-clarin at helsinki dot fi"
+
 The information on loaded plugins is accessible in the variable
-`korppluginlib.loaded_plugins`. Its value is an `OrderedDict` whose keys
-are plugin names and values are `dict`s with the value of the key
+`korppluginlib.loaded_plugins`. Its value is an `OrderedDict` whose
+keys are plugin names and values are `dict`s with the value of the key
 `"module"` containing the plugin module object and the rest taken from
 the `PLUGIN_INFO` defined in the plugin. The values in
 `loaded_plugins` are in the order in which the plugins have been
@@ -553,21 +576,35 @@ needed:
   `korppluginlib.load` would check if a plugin module just imported
   had specified that it requires certain other plugins and call itself
   recursively to load them. They would be loaded only after the
-  requiring plugin, however.
+  requiring plugin, however. If the requirements were specified in the
+  `info` module of a plugin that the plugin loader could inspect
+  before loading plugins, it might be possible to order loading the
+  plugins more properly.
 
 - Plugins cannot be chosen based on their properties, such as their
   version (for example, load the most recent version of a plugin
-  available on the search path) or what endpoints they provide.
+  available on the search path) or what endpoints or callbacks they
+  provide.
 
-  One option for implementing such functionality would be to have a
-  separate data file in the plugin (package) directory containing such
-  information that the plugin loader would inspect before actually
-  importing the module, as in
-  [Flask-Plugins](https://flask-plugins.readthedocs.io/en/master/).
-  The data file could be JSON (as in Flask-Plugins) or perhaps plain
-  Python. However, that would probably require that the plugins are
-  Python (sub-)packages, not modules directly within the `korpplugins`
-  namespace package (or whatever is configured).
+  One option for implementing such functionality would be to have such
+  information in the plugin `info` module that the plugin loader would
+  inspect before actually importing the plugin module, as in
+  [Flask-Plugins](https://flask-plugins.readthedocs.io/en/master/)
+  (which however uses JSON files).
+
+- The version and date information in `PLUGIN_INFO` or an `info`
+  module requires manual updating whenever the plugin is changed. An
+  alternative or complementary way of adding such information would be
+  to get the information from the latest Git commit of the plugin,
+  typically the abbreviated commit hash and author or commit date.
+  (This of course supposes that the plugin resides in a Git
+  repository.) Apparently, the recommended way of including the
+  information is to have an installation script that generates a file
+  that contains the information and that is excluded from the
+  repository. If the plugin loader knows of and finds such a file
+  containing Git commit information in a format it recognizes, it
+  could add the information to `PLUGIN_INFO` and the information could
+  also be output when loading the plugins.
 
 - Unlike callback methods, endpoint view functions are not methods in
   a class, as at least currently, `main_handler` and `prevent_timeout`
