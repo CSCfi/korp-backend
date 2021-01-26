@@ -90,7 +90,9 @@ def load(app, plugin_list, decorators=None, app_globals=None):
                 if descr:
                     load_msg += ": " + descr
             if plugin in plugin_configs:
-                print_verbose(2, "  configuration:", plugin_configs[plugin])
+                print_verbose(2, "  configuration:")
+                print_verbose(2, _format_config(plugin_configs[plugin],
+                                                indent=4))
             print_verbose(1, load_msg, immediate=True)
             # Print the verbose messages collected when loading the plugin
             # module
@@ -123,7 +125,9 @@ def _find_plugin(plugin):
     for pkg in pluginlibconf.PACKAGES:
         module_name = pkg + "." + plugin if pkg else plugin
         try:
-            return importlib.import_module(module_name)
+            module = importlib.import_module(module_name)
+            _set_plugin_info(module)
+            return module
         except ModuleNotFoundError as e:
             not_found.append("'" + module_name + "'")
     if len(not_found) == 1:
@@ -133,6 +137,46 @@ def _find_plugin(plugin):
     raise ModuleNotFoundError(
         "No module named " + not_found_str + " in any of "
         + ", ".join((dir or ".") for dir in sys.path))
+
+
+def _set_plugin_info(module):
+    """Set or update module.PLUGIN_INFO from module module.info.
+
+    Set or update the dictionary module.PLUGIN_INFO from the variables
+    set in the module module.info (if the plugin module is a package)
+    or module_info (if the plugin module is not a package), if such an
+    info module exists. The variable names are lower-cased to make
+    PLUGIN_INFO keys. The values in module.PLUGIN_INFO override those
+    retrieved from the info module.
+    """
+    module_name = module.__name__
+    # Plugin module is a package if module.__name__ == module.__package__
+    info_module_name = module_name + (
+        ".info" if module_name == module.__package__ else "_info")
+    try:
+        info_module = importlib.import_module(info_module_name)
+        # Get all names and their values from the module except for names
+        # beginning with a double underscore
+        info = dict((name.lower(), getattr(info_module, name))
+                    for name in dir(info_module) if not name.startswith("__"))
+    except ModuleNotFoundError:
+        info = {}
+    # Values in module.PLUGIN_INFO override those in the info module
+    info.update(getattr(module, "PLUGIN_INFO", {}))
+    setattr(module, "PLUGIN_INFO", info)
+
+
+def _format_config(conf, indent=0):
+    """Format configuration namespace conf with the given indent.
+
+    Format the namespace conf containing plugin configuration so that
+    each item is on separate line and is of the form
+      NAME = value
+    preceded by indent spaces.
+    """
+    return "\n".join(
+        "{ind}{key} = {val}".format(ind=indent * " ", key=key, val=repr(val))
+        for key, val in conf.__dict__.items())
 
 
 def _handle_duplicate_routing_rules(app):
@@ -228,3 +272,22 @@ def _remove_duplicate_routing_rules(app):
         # Update the rule map
         url_map._remap = True
         url_map.update()
+
+
+def get_loaded_plugins(names_only=False):
+    """Return a list of loaded plugins, with PLUGIN_INFO unless names_only.
+
+    If names_only, return a list of plugin names (as specified in
+    PLUGINS). Otherwise, return a list of dicts with key "name" as the
+    load name of the plugin and "info" the PLUGIN_INFO defined in the
+    plugin, excluding key "module" added in load().
+    """
+    if names_only:
+        return list(loaded_plugins.keys())
+    else:
+        return [
+            {"name": name,
+             "info": dict((key, val)
+                          for key, val in info.items() if key != "module")}
+            for name, info in loaded_plugins.items()
+        ]
