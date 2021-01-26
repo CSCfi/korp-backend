@@ -65,7 +65,7 @@ class KorpCallbackPluginMetaclass(Singleton):
                 attr = getattr(inst, name)
                 if (name[0].islower() and callable(attr)
                         and name not in cls._base_methods):
-                    cls._callbacks[name].append((attr, cls.applies_to))
+                    cls._callbacks[name].append((attr, inst.applies_to))
                     print_verbose(
                         2, ("  hook point \"" + name
                             + "\": callback " + attr.__qualname__))

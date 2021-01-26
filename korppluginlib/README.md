@@ -2,6 +2,36 @@
 # `korppluginlib`: Korp backend plugin framework (API) (proposal)
 
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+## Table of contents
+
+- [Overview](#overview)
+- [Configuration](#configuration)
+  - [Configuring Korp for plugins](#configuring-korp-for-plugins)
+  - [Configuring `korppluginlib`](#configuring-korppluginlib)
+  - [Configuring individual plugins](#configuring-individual-plugins)
+- [Plugin information](#plugin-information)
+- [Endpoint plugins](#endpoint-plugins)
+  - [Implementing a new WSGI endpoint](#implementing-a-new-wsgi-endpoint)
+  - [Non-JSON endpoints](#non-json-endpoints)
+  - [Defining additional endpoint decorators](#defining-additional-endpoint-decorators)
+- [Callback plugins](#callback-plugins)
+  - [Filter hook points](#filter-hook-points)
+  - [Event hook points](#event-hook-points)
+  - [Callback plugin example](#callback-plugin-example)
+  - [Notes on implementing a callback plugin](#notes-on-implementing-a-callback-plugin)
+  - [Keeping request-specific state](#keeping-request-specific-state)
+  - [Defining hook points in plugins](#defining-hook-points-in-plugins)
+- [Accessing main application module globals in plugins](#accessing-main-application-module-globals-in-plugins)
+- [Limitations and deficiencies](#limitations-and-deficiencies)
+- [Influences and alternatives](#influences-and-alternatives)
+  - [Influcences](#influcences)
+  - [Other Python plugin frameworks and libraries](#other-python-plugin-frameworks-and-libraries)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
+
 ## Overview
 
 The Korp backend supports two kinds of plugins:
@@ -22,12 +52,27 @@ same plugin module.
 ## Configuration
 
 
-### Configuring `korppluginlib`
+### Configuring Korp for plugins
 
-The names of plugins (modules or subpackages) to be used are defined
-in the list `PLUGINS` in `config.py` (that is, Korp’s top-level module
-`config`). If a plugin module is not found, a warning is output to the
-standard output.
+Korp’s `config.py` (that is, top-level module `config`) contains the
+following plugin-related variables:
+
+- `PLUGINS`: A list of names of plugins (modules or subpackages) to be
+  used, in the order they are to be loaded. If a plugin module is not
+  found, a warning is output to the standard output.
+
+- `INFO_SHOW_PLUGINS`: What information on loaded plugins the response
+  of the `/info` command should contain:
+  - `None` or `""`: nothing
+  - `"names"`: `plugins` as a list of names of plugins as specified in
+    `PLUGINS`
+  - `"info"`: `plugins` as a list of objects with `name` as the name
+    of the plugin as specified in `PLUGINS` and `info` as the
+    information specified in the `PLUGIN_INFO` dictionary defined in
+    the plugin module (see [below](#plugin-information)
+
+
+### Configuring `korppluginlib`
 
 The configuration of `korppluginlib` is in the module
 `korppluginlib.config` (file `korppluginlib/config.py`). Currently,
@@ -55,6 +100,21 @@ the following configuration variables are recognized:
     - `2`: the names of loaded plugins and their possible
       configurations, and the view functions handling a route or
       callback methods registered for a hook point
+
+- `HANDLE_DUPLICATE_ROUTES`: What to do with duplicate endpoints for a
+  routing rule, added by plugins:
+    - `"override"`: Use the endpoint defined last without printing
+      anything, allowing a plugin to override an endpoint defined in
+      `korp.py`; if multiple plugins define an endpoint for the same
+      route, the last one is used.
+    - `"override,warn"` (default): Use the endpoint defined last and
+      print a warning to stderr.
+    - `"ignore"`: Use the endpoint defined first (Flask default
+      behaviour) without printing anything.
+    - `"warn"`: Use the endpoint defined first (Flask default) and
+      print a warning message to stderr.
+    - `"error"`: Print an error message to stderr and raise a
+      `ValueError`.
 
 Alternatively, the configuration variables may be specified in the
 top-level module `config` within the dictionary or namespace object
@@ -120,20 +180,43 @@ is always a `SimpleNamespace`.
 ## Plugin information
 
 A plugin module or package may define `dict` `PLUGIN_INFO` containing
-pieces of information on the plugin. The values of keys `"name"`,
-`"version"` and `"date"` are shown in the plugin load message if
-defined (and if `LOAD_VERBOSITY` is at least 1), but others can be
-freely added as needed. For example:
+pieces of information on the plugin. Alternatively, a plugin package
+may contain module named `info` and a non-package plugin module
+_plugin_ may be accompanied with a module named _plugin_`_info`
+containing variable definitions that are added to `PLUGIN_INFO` with
+the lower-cased variable name as the key. (As their values are
+constant, it is suggested that the variable names in the `info` module
+are written in upper case.) If both `PLUGIN_INFO` and an `info` module
+contain a value for the same key, the value in `PLUGIN_INFO` takes
+precedence.
+
+Plugin information should contain values for at least the keys
+`"name"`, `"version"` and `"date"`, and preferably also
+`"description"` and possibly `"author"`. Others may be freely added as
+needed. The first three are shown in the plugin load message if
+defined (and if `LOAD_VERBOSITY` is at least 1). For example:
 
     PLUGIN_INFO = {
-        "name": "korppluginlib test plugin 1",
+        "name": "korppluginlib_test_1",
         "version": "0.1",
         "date": "2020-12-10",
+        "description": "korppluginlib test plugin 1",
+        "author": "FIN-CLARIN",
+        "author_email": "fin-clarin at helsinki dot fi",
     }
 
+Or equivalently in an `info` module:
+
+    NAME = "korppluginlib_test_1"
+    VERSION = "0.1"
+    DATE = "2020-12-10"
+    DESCRIPTION = "korppluginlib test plugin 1"
+    AUTHOR = "FIN-CLARIN"
+    AUTHOR_EMAIL = "fin-clarin at helsinki dot fi"
+
 The information on loaded plugins is accessible in the variable
-`korppluginlib.loaded_plugins`. Its value is an `OrderedDict` whose keys
-are plugin names and values are `dict`s with the value of the key
+`korppluginlib.loaded_plugins`. Its value is an `OrderedDict` whose
+keys are plugin names and values are `dict`s with the value of the key
 `"module"` containing the plugin module object and the rest taken from
 the `PLUGIN_INFO` defined in the plugin. The values in
 `loaded_plugins` are in the order in which the plugins have been
@@ -146,9 +229,17 @@ loaded.
 ### Implementing a new WSGI endpoint
 
 To implement a new WSGI endpoint, you first create an instance of
-`korppluginlib.Blueprint` (a subclass of `flask.Blueprint`) as follows:
+`korppluginlib.KorpEndpointPlugin` (a subclass of `flask.Blueprint`)
+as follows:
 
-    test_plugin = korppluginlib.Blueprint("test_plugin", __name__)
+    test_plugin = korppluginlib.KorpEndpointPlugin()
+
+You can also specify a name for the plugin, overriding the default
+that is the calling module name `__name__`:
+
+    test_plugin = korppluginlib.KorpEndpointPlugin("test_plugin")
+
+You may also pass other arguments recognized by `flask.Blueprint`.
 
 The actual view function is a generator function decorated with the
 `route` method of the created instance; for example:
@@ -165,22 +256,57 @@ as the keyword argument `extra_decorators` and other options of
 would be specified as decorators (topmost first), that is, in the
 reverse order of application. The generator function takes a single
 `dict` argument containing the parameters of the call and yields the
-result. For example:
+result.
 
 A single plugin module can define multiple new endpoints.
+
+
+### Non-JSON endpoints
+
+Even though Korp endpoints should in general return JSON data, it may
+be desirable to implement endpoints returning another type of data,
+for example, if the endpoint generates a file for downloading. That
+can be accomplished by adding `use_custom_headers` to
+`extra_decorators`. An endpoint using `use_custom_headers` should
+yield a `dict` with the following keys recognized:
+
+- `"content"`: the actual content;
+- `"mimetype"` (default: `"text/html"`): possible MIME type; and
+- `"headers"`: possible other headers as a list of pairs (_header_,
+  _value_).
+
+For example, the following endpoint returns an attachment for a
+plain-text file listing the arguments to the endpoint, named with the
+value of `filename` (`args.txt` if not specified):
+
+    @test_plugin.route("/text", extra_decorators=["use_custom_headers"])
+    def textfile(args):
+        """Make downloadable plain-text file of args."""
+        yield {
+            "content": "\n".join(arg + "=" + repr(args[arg]) for arg in args),
+            "mimetype": "text/plain",
+            "headers": [
+                ("Content-Disposition",
+                 "attachment; filename=\"" + args.get("filename", "args.txt")
+                 + "\"")]
+        }
+
+Note that neither the endpoint argument `incremental=true` nor the
+decorator `prevent_timeout` has any practical effect on endpoints with
+`use_custom_headers`.
 
 
 ### Defining additional endpoint decorators
 
 By default, the endpoint decorator functions whose names can be listed
-in `extra_decorators` include only `prevent_timeout`, as the endpoints
-defined in this way are always decorated with `main_handler` as the
-topmost decorator. However, additional decorator functions can be
-defined by decorating them with
-`korppluginlib.Blueprint.endpoint_decorator`; for example:
+in `extra_decorators` include only `prevent_timeout` and
+`use_custom_headers`, as the endpoints defined in this way are always
+decorated with `main_handler` as the topmost decorator. However,
+additional decorator functions can be defined by decorating them with
+`korppluginlib.KorpEndpointPlugin.endpoint_decorator`; for example:
 
-    # test_plugin is an instance of korppluginlib.Blueprint, so this is
-    # equivalent to @korppluginlib.Blueprint.endpoint_decorator
+    # test_plugin is an instance of korppluginlib.KorpEndpointPlugin, so this
+    # is equivalent to @korppluginlib.KorpEndpointPlugin.endpoint_decorator
     @test_plugin.endpoint_decorator
     def test_decor(generator):
         """Add to the result an extra layer with text_decor and payload."""
@@ -190,26 +316,6 @@ defined by decorating them with
                 yield {"test_decor": "Endpoint decorated with test_decor",
                        "payload": x}
         return decorated
-
-
-### Limitations
-
-The current implementation has at least the following limitations:
-
-- An endpoint (the view function) defined in a plugin cannot currently
-  override an existing view function for the same endpoint defined in
-  `korp.py` or in a plugin loaded earlier (listed earlier in
-  `config.PLUGINS`). (But if the need arises, this restriction can
-  probably be lifted or relaxed, so that a view function could declare
-  that it overrides another view function.)
-
-- It is also not possible to modify the functionality of an existing
-  endpoint, for example, by calling the existing view function from
-  the function defined in a plugin, possibly modifying the arguments
-  or the result. However, in many cases, a similar effect can be
-  achieved by defining the appropriate callback methods for hook
-  points `filter_args` and `filter_result`; see
-  [below](#filter-hook-points).
 
 
 ## Callback plugins
@@ -251,9 +357,18 @@ the following:
   `dict` `args` to any endpoint (view function) and returns the
   modified value.
 
-- `filter_result(self, result, request)`: Modifies the result
-  `dict` `result` returned by any endpoint (view function) and returns
-  the modified value.
+- `filter_result(self, result, request)`: Modifies the result `dict`
+  `result` returned by any endpoint (view function) and returns the
+  modified value.
+
+  *Note* that when the arguments (query parameters) of the endpoint
+  contain `incremental=true`, `filter_result` is called separately for
+  each incremental part of the result, typically `progress_corpora`,
+  `progress_`_num_ (where _num_ is the number of corpus), the actual
+  content body, and possibly `hits`, `corpus_hits`, `corpus_order` and
+  `query_data` as a single part. (Currently, `filter_result` is *not*
+  called for `time`.) Thus, you should not assume that the value of
+  the `result` argument always contains the content body.
 
 - `filter_cqp_input(self, cqp, request)`: Modifies the raw CQP
   input string `cqp`, typically consisting of multiple CQP commands,
@@ -418,11 +533,147 @@ Three types of call methods are available in KorpCallbackPluginCaller:
 Only the first two are currently used in `korp.py`.
 
 
-## Accessing main application module global variables in plugins
+## Accessing main application module globals in plugins
 
-The values of selected global variables in the main application module
-`korp.py` are available to plugin modules in the attributes of
-`korppluginlib.app_globals`. The variables currently available are
-`app`, `mysql` and `KORP_VERSION`, which can be accessed as
-`korppluginlib.app_globals.`_name_. In this way, for example, a
-plugin can access the Korp MySQL database.
+The values of selected global variables, constants and functions in
+the main application module `korp.py` are available to plugin modules
+in the attributes of `korppluginlib.app_globals`, thus accessible as
+`korppluginlib.app_globals.`_name_. The variables and constants
+currently available are `app`, `mysql`, `mc_pool`, `KORP_VERSION`,
+`END_OF_LINE`, `LEFT_DELIM`, `RIGHT_DELIM`, `IS_NUMBER`, `IS_IDENT`
+and `QUERY_DELIM`. In addition, several helper functions defined in
+`korp.py` and useful in at least endpoint plugins can be accessed
+similarly. In this way, for example, a plugin can access the Korp
+MySQL database and the Memcached cache and use `assert_key` to assert
+the format of arguments.
+
+
+## Limitations and deficiencies
+
+The current implementation has at least the following limitations and
+deficiencies, which might be subjects for future development, if
+needed:
+
+- In endpoint plugins, it is not possible to modify the functionality
+  of an existing endpoint, for example, by calling an existing view
+  function from a function defined in a plugin, possibly modifying the
+  arguments or the result. However, in many cases, a similar effect
+  can be achieved by defining the appropriate callback methods for
+  hook points `filter_args` and `filter_result`; see
+  [above](#filter-hook-points).
+
+- The order of calling the callbacks for a hook point is determined by
+  the order of plugins listed in `config.PLUGINS`. The plugins
+  themselves cannot specify that they should be loaded before or after
+  another plugin. Moreover, in some cases, it might make sense to call
+  one callback of a plugin before those of other plugins (such as
+  `filter_args`) and another after those of others (such as
+  `filter_result`), in a way wrapping the others (from previously
+  loaded plugins). What would be a sufficiently flexible way to allow
+  more control of callback order? In
+  [Flask-Plugins](https://flask-plugins.readthedocs.io/en/master/),
+  one can specify that a callback (event listener) is called before
+  the previously registered ones instead of after them (the default).
+
+- It might be possible for a single callback plugin class to implement
+  multiple callbacks for the same hook point if a decorator was used
+  to register callback methods for a hook point, instead of or as an
+  alternative to linking methods to a hook point by their name. But
+  would that be useful?
+
+- A plugin cannot require that another plugin should have been loaded
+  nor can it request other plugins to be loaded, at least not easily.
+  However, it might not be difficult to add a facility in which
+  `korppluginlib.load` would check if a plugin module just imported
+  had specified that it requires certain other plugins and call itself
+  recursively to load them. They would be loaded only after the
+  requiring plugin, however. If the requirements were specified in the
+  `info` module of a plugin that the plugin loader could inspect
+  before loading plugins, it might be possible to order loading the
+  plugins more properly.
+
+- Plugins cannot be chosen based on their properties, such as their
+  version (for example, load the most recent version of a plugin
+  available on the search path) or what endpoints or callbacks they
+  provide.
+
+  One option for implementing such functionality would be to have such
+  information in the plugin `info` module that the plugin loader would
+  inspect before actually importing the plugin module, as in
+  [Flask-Plugins](https://flask-plugins.readthedocs.io/en/master/)
+  (which however uses JSON files).
+
+- The version and date information in `PLUGIN_INFO` or an `info`
+  module requires manual updating whenever the plugin is changed. An
+  alternative or complementary way of adding such information would be
+  to get the information from the latest Git commit of the plugin,
+  typically the abbreviated commit hash and author or commit date.
+  (This of course supposes that the plugin resides in a Git
+  repository.) Apparently, the recommended way of including the
+  information is to have an installation script that generates a file
+  that contains the information and that is excluded from the
+  repository. If the plugin loader knows of and finds such a file
+  containing Git commit information in a format it recognizes, it
+  could add the information to `PLUGIN_INFO` and the information could
+  also be output when loading the plugins.
+
+- Accessing helper functions in `korp.py` via
+  `korppluginlib.app_globals` is somewhat cumbersome. It could be
+  simplified by moving the helper functions to a separate library
+  module that could be imported by plugins.
+
+- Unlike callback methods, endpoint view functions are not methods in
+  a class, as at least currently, `main_handler` and `prevent_timeout`
+  cannot decorate an instance method. Possible ideas for solving that:
+  https://stackoverflow.com/a/1288936,
+  https://stackoverflow.com/a/36067926
+
+- Plugins are not loaded on demand. However, loading on demand would
+  probably make sense only for endpoint plugins, which could be loaded
+  when an endpoint is accessed. Even then, the advantage of on-demand
+  loading might not be large.
+
+
+## Influences and alternatives
+
+Many Python plugin frameworks or libraries exist, but they did not
+appear suitable for Korp plugins as such. In particular, we wished to
+have both callback plugins and endpoint plugins.
+
+
+### Influcences
+
+Using a metaclass for registering callback plugins in `korppluginlib`
+was inspired by and partially adapted from Marty Alchin’s [A Simple
+Plugin
+Framework](http://martyalchin.com/2008/jan/10/simple-plugin-framework/).
+
+The terms used in conjunction with callback plugins were partially
+influenced by the terminology for [WordPress
+plugins](https://developer.wordpress.org/plugins/hooks/).
+
+The [Flask-Plugins](https://flask-plugins.readthedocs.io/en/master/)
+Flask extension might have been a natural choice, as Korp is a Flask
+application, but it was not immediately obvious if it could have been
+used to implement new endpoints. Moreover, for callback (event)
+plugins, it would have had to be extended to support passing the
+result from one plugin callback as the input of another.
+
+Using Flask Blueprints for endpoint plugins was hinted at by Martin
+Hammarstedt.
+
+
+### Other Python plugin frameworks and libraries
+
+- [PluginBase](https://github.com/mitsuhiko/pluginbase)
+
+- [stevedore](https://docs.openstack.org/stevedore/latest/) (uses
+  [Setuptools](https://github.com/pypa/setuptools))
+
+- [Pluginlib](https://pluginlib.readthedocs.io/en/stable/)
+
+- [Ideas for a minimal Python plugin architecture on
+  StackOverflow](https://stackoverflow.com/questions/932069/building-a-minimal-plugin-architecture-in-python)
+
+- [A list of Python plugin frameworks from
+  2009](http://wehart.blogspot.com/2009/01/python-plugin-frameworks.html)

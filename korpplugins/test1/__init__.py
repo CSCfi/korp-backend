@@ -25,7 +25,7 @@ PLUGIN_INFO = {
 }
 
 
-test_plugin = korppluginlib.Blueprint("test_plugin", __name__)
+test_plugin = korppluginlib.KorpEndpointPlugin()
 
 
 @test_plugin.endpoint_decorator
@@ -42,6 +42,30 @@ def test_decor(generator):
 
 @test_plugin.route("/test", extra_decorators=["test_decor"])
 def test(args):
+    """Yield arguments wrapped in ARGS_NAME."""
+    yield {pluginconf.ARGS_NAME: args}
+
+
+@test_plugin.route("/query", extra_decorators=["test_decor"])
+def query(args):
+    """Yield arguments wrapped in ARGS_NAME."""
+    yield {pluginconf.ARGS_NAME: args}
+
+
+@test_plugin.route("/query", extra_decorators=["test_decor"])
+def query2(args):
+    """Yield arguments wrapped in ARGS_NAME."""
+    yield {pluginconf.ARGS_NAME: args}
+
+
+@test_plugin.route("/count", extra_decorators=["test_decor"])
+def count(args):
+    """Yield arguments wrapped in ARGS_NAME."""
+    yield {pluginconf.ARGS_NAME: args}
+
+
+@test_plugin.route("/count", extra_decorators=["test_decor"])
+def count2(args):
     """Yield arguments wrapped in ARGS_NAME."""
     yield {pluginconf.ARGS_NAME: args}
 

@@ -198,6 +198,45 @@ def main_handler(generator):
                 yield result
                 plugin_caller.cleanup()
 
+            def make_custom_response(ff):
+                """Return a Response with custom mimetype and/or headers.
+
+                The view function ff should yield a dict with the
+                following keys recognized:
+                - "content": the actual content;
+                - "mimetype" (default: "text/html"): possible MIME type; and
+                - "headers": possible other headers as a list of pairs
+                  (header, value).
+
+                Note that setting incremental=True does not have any effect.
+                """
+                result = {}
+                try:
+                    for response in ff:
+                        if response:
+                            result.update(response)
+                except GeneratorExit:
+                    raise
+                except:
+                    # Return error information as JSON
+                    result["content"] = json.dumps(error_handler(),
+                                                   indent=indent)
+                    result["mimetype"] = "application/json"
+
+                # Filter only the content. Should we also allow filtering the
+                # headers and/or mimetype, using separate hook points?
+                result["content"] = plugin_caller.call_chain(
+                    "filter_result", result["content"])
+
+                endtime = time.time()
+                elapsed_time = endtime - starttime
+                plugin_caller.call("exit_handler", endtime, elapsed_time)
+                plugin_caller.cleanup()
+
+                return Response(result.get("content"),
+                                headers=result.get("headers"),
+                                mimetype=result.get("mimetype"))
+
             starttime = time.time()
             plugin_caller.call("enter_handler", args, starttime)
             args = plugin_caller.call_chain("filter_args", args)
@@ -205,7 +244,10 @@ def main_handler(generator):
             callback = args.get("callback")
             indent = int(args.get("indent", 0))
 
-            if incremental:
+            if getattr(generator, "use_custom_headers", None):
+                # Custom headers and/or MIME type (non-JSON)
+                return make_custom_response(generator(args, *pargs, **kwargs))
+            elif incremental:
                 # Incremental response
                 return Response(stream_with_context(incremental_json(generator(args, *pargs, **kwargs))),
                                 mimetype="application/json")
@@ -257,6 +299,19 @@ def prevent_timeout(generator):
                 yield {}
 
     return decorated
+
+
+def use_custom_headers(generator):
+    """Decorator for view functions possibly yielding a non-JSON result.
+
+    A view function with attribute use_custom_headers = True is
+    treated specially in main_handler: the actual content is assumed
+    to be in the value for the key "content" of the result dict, MIME
+    type in "mimetype" and possible other headers as a list of pairs
+    (header, value) in "headers".
+    """
+    generator.use_custom_headers = True
+    return generator
 
 
 ################################################################################
@@ -336,6 +391,10 @@ def info(args):
             protected = [x.strip() for x in infile.readlines()]
 
     result = {"version": KORP_VERSION, "cqp_version": version, "corpora": list(corpora), "protected_corpora": protected}
+
+    if config.INFO_SHOW_PLUGINS:
+        result["plugins"] = korppluginlib.get_loaded_plugins(
+            names_only=(config.INFO_SHOW_PLUGINS == "names"))
 
     if args["cache"]:
         with mc_pool.reserve() as mc:
@@ -3510,16 +3569,45 @@ setup_cache()
 
 
 # Load plugins
-korppluginlib.load(app, config.PLUGINS, [main_handler, prevent_timeout],
-                 dict((name, globals().get(name))
-                      for name in [
-                          # Allow plugins to access (indirectly) the values of
-                          # these global variables
-                          "app",
-                          "mysql",
-                          "KORP_VERSION",
-                      ]
-                  ))
+korppluginlib.load(
+    app, config.PLUGINS,
+    [
+        main_handler,
+        prevent_timeout,
+        use_custom_headers,
+    ],
+    dict((name, globals().get(name))
+         for name in [
+             # Allow plugins to access (indirectly) the values of
+             # these global variables, constants and functions
+             "app",
+             "mysql",
+             "mc_pool",
+             # Constants
+             "KORP_VERSION",
+             "END_OF_LINE",
+             "LEFT_DELIM",
+             "RIGHT_DELIM",
+             "IS_NUMBER",
+             "IS_IDENT",
+             "QUERY_DELIM",
+             # Functions (this would not be needed if these were defined
+             # in a separate library module imported by plugin modules)
+             "parse_corpora",
+             "parse_within",
+             "parse_cqp_subcqp",
+             "cache_prefix",
+             "parse_cqp",
+             "make_cqp",
+             "make_query",
+             "translate_undef",
+             "get_hash",
+             "run_cqp",
+             "assert_key",
+             "generator_to_dict",
+             "parse_bool",
+         ]
+     ))
 
 
 if __name__ == "__main__":

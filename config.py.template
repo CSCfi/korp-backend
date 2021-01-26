@@ -72,6 +72,11 @@ CACHE_MAX_STATS = 5000
 # List of names of plugin modules to load
 PLUGINS = []
 
+# Show plugin information in the result of the /info command: "name" = plugin
+# names only, "info" = plugin information in the PLUGIN_INFO of the plugin,
+# None = nothing
+INFO_SHOW_PLUGINS = "info"
+
 # korppluginlib configuration: the values here override those in
 # korppluginlib.config; comment these out to use the defaults. For
 # more information, see korppluginlib.config.
