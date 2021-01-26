@@ -570,6 +570,12 @@ needed:
   one can specify that a callback (event listener) is called before
   the previously registered ones instead of after them (the default).
 
+- It might be possible for a single callback plugin class to implement
+  multiple callbacks for the same hook point if a decorator was used
+  to register callback methods for a hook point, instead of or as an
+  alternative to linking methods to a hook point by their name. But
+  would that be useful?
+
 - A plugin cannot require that another plugin should have been loaded
   nor can it request other plugins to be loaded, at least not easily.
   However, it might not be difficult to add a facility in which
