@@ -12,6 +12,8 @@ completions for a prefix.
 # - Add parameters affecting the result.
 
 
+import pylibmc
+
 import korppluginlib
 
 
@@ -50,16 +52,48 @@ def lemgram_complete(args):
     corpora = appglob.parse_corpora(args)
     limit = int(args.get("limit", 10))
     fmt = args.get("format")
+
+    # Check if the result is cached
+    # TODO: Add a helper function in korp.py abstracting the relevant
+    # parts of the cache handling code
+    if args["cache"]:
+        checksum = appglob.get_hash((wf, sorted(corpora), limit, fmt))
+        cache_key = (
+            "%s:lemgramcomplete_%s" % (appglob.cache_prefix(), checksum))
+        with appglob.mc_pool.reserve() as mc:
+            result = mc.get(cache_key)
+        if result:
+            if "debug" in args:
+                result.setdefault("DEBUG", {})
+                result["DEBUG"]["cache_read"] = True
+                result["DEBUG"]["checksum"] = checksum
+            yield result
+            return
+
     result = _get_lemgrams(wf, corpora, limit)
     if fmt == "old":
         result = _encode_lemgram_result(result)
         hits_name = "div"
     else:
         hits_name = "lemgrams"
-    yield {
+    result = {
         hits_name: result,
         "count": len(result),
     }
+
+    if args["cache"]:
+        # Cache the result
+        with appglob.mc_pool.reserve() as mc:
+            try:
+                saved = mc.add(cache_key, result)
+            except pylibmc.TooBig:
+                pass
+            else:
+                if saved and "debug" in args:
+                    result.setdefault("DEBUG", {})
+                    result["DEBUG"]["cache_saved"] = True
+
+    yield result
 
 
 def _get_lemgrams(wf, corpora, limit):
