@@ -382,6 +382,10 @@ def info(args):
 
     result = {"version": KORP_VERSION, "cqp_version": version, "corpora": list(corpora), "protected_corpora": protected}
 
+    if config.INFO_SHOW_PLUGINS:
+        result["plugins"] = korppluginlib.get_loaded_plugins(
+            names_only=(config.INFO_SHOW_PLUGINS == "names"))
+
     if args["cache"]:
         with mc_pool.reserve() as mc:
             added = mc.add("%s:info" % cache_prefix(), result)
@@ -3474,16 +3478,45 @@ setup_cache()
 
 
 # Load plugins
-korppluginlib.load(app, config.PLUGINS, [main_handler, prevent_timeout],
-                 dict((name, globals().get(name))
-                      for name in [
-                          # Allow plugins to access (indirectly) the values of
-                          # these global variables
-                          "app",
-                          "mysql",
-                          "KORP_VERSION",
-                      ]
-                  ))
+korppluginlib.load(
+    app, config.PLUGINS,
+    [
+        main_handler,
+        prevent_timeout,
+        use_custom_headers,
+    ],
+    dict((name, globals().get(name))
+         for name in [
+             # Allow plugins to access (indirectly) the values of
+             # these global variables, constants and functions
+             "app",
+             "mysql",
+             "mc_pool",
+             # Constants
+             "KORP_VERSION",
+             "END_OF_LINE",
+             "LEFT_DELIM",
+             "RIGHT_DELIM",
+             "IS_NUMBER",
+             "IS_IDENT",
+             "QUERY_DELIM",
+             # Functions (this would not be needed if these were defined
+             # in a separate library module imported by plugin modules)
+             "parse_corpora",
+             "parse_within",
+             "parse_cqp_subcqp",
+             "cache_prefix",
+             "parse_cqp",
+             "make_cqp",
+             "make_query",
+             "translate_undef",
+             "get_hash",
+             "run_cqp",
+             "assert_key",
+             "generator_to_dict",
+             "parse_bool",
+         ]
+     ))
 
 
 if __name__ == "__main__":
