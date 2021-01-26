@@ -60,6 +60,10 @@ class KorpEndpointPlugin(flask.Blueprint):
         application, that is, in the order in which they would be specified
         as decorators (topmost first).
         """
+        # CHECK: Could extra_decorators be replaced with specifying them in the
+        # usual way as @decorator if they were defined in a module instead of
+        # korp.py? At least a simple approach with @plugin.route(...)
+        # @use_custom_headers def func(...): ... does not seem to work.
         extra_decorators = extra_decorators or []
         self._instances.add(self)
         if "methods" not in options:
