@@ -3488,10 +3488,33 @@ korppluginlib.load(
     dict((name, globals().get(name))
          for name in [
              # Allow plugins to access (indirectly) the values of
-             # these global variables
+             # these global variables, constants and functions
              "app",
              "mysql",
+             "mc_pool",
+             # Constants
              "KORP_VERSION",
+             "END_OF_LINE",
+             "LEFT_DELIM",
+             "RIGHT_DELIM",
+             "IS_NUMBER",
+             "IS_IDENT",
+             "QUERY_DELIM",
+             # Functions (this would not be needed if these were defined
+             # in a separate library module imported by plugin modules)
+             "parse_corpora",
+             "parse_within",
+             "parse_cqp_subcqp",
+             "cache_prefix",
+             "parse_cqp",
+             "make_cqp",
+             "make_query",
+             "translate_undef",
+             "get_hash",
+             "run_cqp",
+             "assert_key",
+             "generator_to_dict",
+             "parse_bool",
          ]
      ))
 
